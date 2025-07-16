@@ -1,0 +1,6 @@
+{
+  "name": "Cotizador de Cambio de Aceite",
+  "description": "Una plataforma para calcular el costo de un servicio de cambio de aceite para vehículos específicos, basado en datos de productos y mano de obra.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
