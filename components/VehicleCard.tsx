@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { VehiculoServicio, Producto } from '../types';
-import { CalendarIcon, FuelIcon, GridIcon, OilCanIcon, SparklesIcon, ToolIcon, WindIcon } from './IconComponents';
+import { FuelIcon, GridIcon, OilCanIcon, SparklesIcon, ToolIcon, WindIcon } from './IconComponents';
 
 interface OilQuoteProps {
   vehicle: VehiculoServicio;
@@ -40,7 +39,6 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
     let foundCode: string | undefined = undefined;
 
     if (codeString) {
-        // Split by ` / ` (slash with spaces), or by `,` or `;` (with optional spaces).
         const potentialCodes = codeString.split(/\s+\/\s+|\s*,\s*|\s*;\s*/).map(c => c.trim()).filter(Boolean);
         for (const code of potentialCodes) {
             const foundProduct = products.find(p => p.codigo && typeof p.codigo === 'string' && p.codigo.trim().toLowerCase() === code.toLowerCase());
@@ -59,15 +57,36 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
 
     if (product && foundCode) {
       mainDescription += product.marca || product.descripcion.split(" ")[0]; // Prioritize brand name
-      details = `${product.descripcion} | Cod: ${foundCode}`;
+      
       if (part.isOil) {
           const requiredLiters = vehicle.litros_aceite || 0;
           const containerVolume = getContainerVolume(product.descripcion);
-          const containersNeeded = containerVolume > 0 ? Math.ceil(requiredLiters / containerVolume) : 0;
-          cost = containersNeeded * product.precio;
-          details = `Cotizado: ${containersNeeded} x ${containerVolume}L. Requiere ${requiredLiters}L. | ${details}`;
+          const containerPrice = product.precio;
+          let cotizadoStr = '';
+
+          if (containerVolume > 0 && requiredLiters > 0) {
+              const fullContainersNeeded = Math.floor(requiredLiters / containerVolume);
+              const looseOilLiters = requiredLiters % containerVolume;
+              const pricePerLiter = containerPrice / containerVolume;
+
+              const fullContainersCost = fullContainersNeeded * containerPrice;
+              // Use a small tolerance for floating point comparisons
+              const looseOilCost = looseOilLiters > 0.01 ? looseOilLiters * pricePerLiter : 0;
+              cost = fullContainersCost + looseOilCost;
+              
+              const detailParts = [];
+              if (fullContainersNeeded > 0) detailParts.push(`${fullContainersNeeded} x ${containerVolume}L`);
+              if (looseOilLiters > 0.01) detailParts.push(`${looseOilLiters.toFixed(2)}L suelto`);
+              cotizadoStr = detailParts.join(' + ');
+
+          } else {
+              cost = containerPrice; // Fallback for simple case
+              cotizadoStr = '1 envase';
+          }
+          details = `Cotizado: ${cotizadoStr}. Requiere ${requiredLiters}L. | ${product.descripcion} | Cod: ${foundCode}`;
       } else {
           cost = product.precio;
+          details = `${product.descripcion} | Cod: ${foundCode}`;
       }
     } else {
         cost = 0;
@@ -102,15 +121,64 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
   const hasMissingData = quoteItems.some(item => item.hasIssue);
   const totalCost = quoteItems.reduce((sum, item) => sum + item.price, 0);
 
-  const additionalInfoParts = [
+  // --- START: Logic for breakdown table ---
+  const breakdownItems: {label: string, value: string, quantity: string}[] = [];
+
+  // Find the oil product to perform calculations
+  const oilCodeString = vehicle.aceite_codigo;
+  let oilProduct;
+  if (oilCodeString) {
+      const potentialCodes = oilCodeString.split(/\s+\/\s+|\s*,\s*|\s*;\s*/).map(c => c.trim()).filter(Boolean);
+      for (const code of potentialCodes) {
+          const foundProduct = products.find(p => p.codigo?.trim().toLowerCase() === code.toLowerCase());
+          if (foundProduct) {
+              oilProduct = foundProduct;
+              break;
+          }
+      }
+  }
+
+  // Add oil parts to breakdown
+  if (oilProduct) {
+      const requiredLiters = vehicle.litros_aceite || 0;
+      const containerVolume = getContainerVolume(oilProduct.descripcion);
+      if (containerVolume > 0 && requiredLiters > 0) {
+          const fullContainersNeeded = Math.floor(requiredLiters / containerVolume);
+          const looseOilLiters = requiredLiters % containerVolume;
+
+          if (fullContainersNeeded > 0) {
+              breakdownItems.push({ label: 'Aceite (Envase)', value: oilProduct.codigo, quantity: `${fullContainersNeeded} u.` });
+          }
+          if (looseOilLiters > 0.01) { // Tolerance for float precision
+              breakdownItems.push({ label: 'Aceite Suelto', value: '', quantity: `${looseOilLiters.toFixed(2)} L` });
+          }
+      } else if (vehicle.aceite_codigo) {
+           breakdownItems.push({ label: 'Aceite', value: vehicle.aceite_codigo, quantity: '1 u.' });
+      }
+  } else if (vehicle.aceite_codigo) {
+      breakdownItems.push({ label: 'Aceite', value: vehicle.aceite_codigo, quantity: '-' });
+  }
+
+  // Add filters to breakdown
+  const filterParts = [
+    { label: 'Filtro de Aceite', code: vehicle.filtro_aceite_codigo },
+    { label: 'Filtro de Aire', code: vehicle.filtro_aire_codigo },
+    { label: 'Filtro de Combustible', code: vehicle.filtro_combustible_codigo },
+    { label: 'Filtro de Habitáculo', code: vehicle.filtro_habitaculo_codigo },
+  ];
+  filterParts.forEach(part => {
+    breakdownItems.push({
+      label: part.label,
+      value: part.code || 'No especificado',
+      quantity: part.code ? '1 u.' : '-',
+    });
+  });
+  
+  const generalInfoItems = [
       {label: 'Tipo de Aceite', value: `${vehicle.tipo_aceite || ''} ${vehicle.nomenclatura_aceite || ''}`.trim()},
-      {label: 'Código de Aceite', value: vehicle.aceite_codigo || 'No especificado'},
-      {label: 'Filtro de Aceite', value: vehicle.filtro_aceite_codigo || 'No especificado'},
-      {label: 'Filtro de Aire', value: vehicle.filtro_aire_codigo || 'No especificado'},
-      {label: 'Filtro de Combustible', value: vehicle.filtro_combustible_codigo || 'No especificado'},
-      {label: 'Filtro de Habitáculo', value: vehicle.filtro_habitaculo_codigo || 'No especificado'},
       {label: 'Próximo Cambio', value: vehicle.intervalo_cambio || 'No especificado'},
   ]
+  // --- END: Logic for breakdown table ---
 
   return (
     <>
@@ -146,15 +214,34 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
         </div>
 
         <div className="mt-8 bg-gray-900/50 rounded-xl p-6">
-            <h3 className="text-xl font-bold text-white mb-4">Información de Repuestos (Servicio de Aceite)</h3>
-            <ul className="space-y-2 text-gray-300">
-                {additionalInfoParts.map(info => (
-                    <li key={info.label} className="flex justify-between border-b border-gray-700/50 py-2">
-                        <span className="font-semibold text-gray-400">{info.label}:</span>
-                        <span className="text-right">{info.value}</span>
+            <h3 className="text-xl font-bold text-white mb-4">Desglose de Repuestos</h3>
+            <ul className="space-y-1 text-gray-300">
+                <li className="flex justify-between border-b-2 border-gray-700 pb-2 mb-2 font-semibold text-gray-400 text-sm">
+                    <span className="w-2/5">Repuesto</span>
+                    <span className="w-2/5 text-right">Código</span>
+                    <span className="w-1/5 text-right">Cantidad</span>
+                </li>
+                {breakdownItems.map((item, index) => (
+                    <li key={index} className="flex justify-between items-center py-2 border-b border-gray-800 last:border-b-0">
+                        <span className="w-2/5">{item.label}</span>
+                        <span className="w-2/5 text-right text-gray-500 font-mono break-all">{item.value}</span>
+                        <span className="w-1/s text-right font-semibold">{item.quantity}</span>
                     </li>
                 ))}
             </ul>
+             {generalInfoItems.length > 0 && (
+                <>
+                    <div className="border-t border-gray-700 my-4"></div>
+                    <ul className="space-y-2 text-gray-300">
+                        {generalInfoItems.map(info => (
+                           info.value && <li key={info.label} className="flex justify-between py-1 text-sm">
+                                <span className="font-semibold text-gray-400">{info.label}:</span>
+                                <span className="text-right">{info.value}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </>
+            )}
         </div>
     </>
   );
