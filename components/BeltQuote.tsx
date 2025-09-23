@@ -21,25 +21,29 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate }) =
   ];
 
   const quoteItems = serviceParts.map(part => {
-    const code = vehicle[part.key as keyof VehiculoServicio] as string;
-    
-    const product = code ? products.find(p => p.codigo && typeof p.codigo === 'string' && p.codigo.trim().toLowerCase() === code.trim().toLowerCase()) : undefined;
+    const code = vehicle[part.key as keyof VehiculoServicio] as string | null | undefined;
+    const trimmedCode = code?.trim();
+    // Robust product finding, ignoring whitespace and case-insensitivity
+    const product = trimmedCode ? products.find(p => p.codigo && typeof p.codigo === 'string' && p.codigo.trim().toLowerCase() === trimmedCode.toLowerCase()) : undefined;
     
     let cost = 0;
     let mainDescription = `${part.label}: `;
-    let details = `Cod: ${product && code ? code.trim() : 'Falta Código'}`;
-    let hasIssue = !product && !!code;
+    let details = '';
+    let hasIssue = false;
 
     if (product) {
       mainDescription += product.marca || product.descripcion.split(" ")[0]; // Prioritize brand name
-      details = `${product.descripcion} | ${details}`;
+      details = `${product.descripcion} | Cod: ${trimmedCode}`;
       cost = product.precio;
     } else {
-        if (code) { // Code was specified but not found
-          mainDescription += 'Producto no encontrado';
-        } else { // No code specified
-          mainDescription += 'No especificado';
-          details = 'Cod: No especificado';
+        cost = 0;
+        if (trimmedCode) {
+            mainDescription += 'Producto no encontrado';
+            details = `Cod: ${trimmedCode} (no encontrado)`;
+            hasIssue = true;
+        } else {
+            mainDescription += 'No especificado';
+            details = 'Cod: No especificado';
         }
     }
 

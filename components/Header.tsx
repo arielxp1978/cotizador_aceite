@@ -1,5 +1,7 @@
-import React from 'react';
-import { CalculatorIcon, LoadingSpinner, RefreshIcon } from './IconComponents';
+import React, { useState, useEffect } from 'react';
+import { CalculatorIcon, LoadingSpinner, RefreshIcon, CheckCircleIcon, XCircleIcon } from './IconComponents';
+
+const WEBHOOK_URL = 'https://n8n.srv803796.hstgr.cloud/webhook/7c15387b-d281-4b09-ba78-273acc11a311';
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -7,6 +9,67 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading }) => {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  useEffect(() => {
+    if (syncStatus !== 'idle') {
+      const timer = setTimeout(() => setSyncStatus('idle'), 3000); // Reset status after 3 seconds
+      return () => clearTimeout(timer);
+    }
+  }, [syncStatus]);
+
+  const handleSync = async () => {
+    if (isSyncing || isLoading) return;
+    setIsSyncing(true);
+    setSyncStatus('idle');
+    try {
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message: 'Iniciando sincronización desde cotizador.' })
+      });
+      if (!response.ok) {
+        throw new Error(`Error del Webhook: ${response.statusText}`);
+      }
+      setSyncStatus('success');
+    } catch (error) {
+      console.error("Error al sincronizar con n8n:", error);
+      setSyncStatus('error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (event.ctrlKey || event.metaKey) { // metaKey for Command on Mac
+      event.preventDefault();
+      handleSync();
+    } else {
+      onRefresh();
+    }
+  };
+
+  const getButtonContent = () => {
+    if (isLoading) {
+      return { icon: <LoadingSpinner className="w-5 h-5" />, text: 'Actualizando...', style: 'bg-indigo-900/50' };
+    }
+    if (isSyncing) {
+      return { icon: <LoadingSpinner className="w-5 h-5" />, text: 'Sincronizando...', style: 'bg-indigo-900/50' };
+    }
+    if (syncStatus === 'success') {
+      return { icon: <CheckCircleIcon className="w-5 h-5" />, text: 'Sincronizado', style: 'bg-green-600' };
+    }
+    if (syncStatus === 'error') {
+      return { icon: <XCircleIcon className="w-5 h-5" />, text: 'Error de Sinc.', style: 'bg-red-600' };
+    }
+    return { icon: <RefreshIcon className="w-5 h-5" />, text: 'Actualizar', style: 'bg-indigo-600/80 hover:bg-indigo-600' };
+  };
+
+  const { icon, text, style } = getButtonContent();
+
   return (
     <header className="bg-gray-900/70 backdrop-blur-lg sticky top-0 z-20 shadow-lg shadow-indigo-500/10">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between gap-4">
@@ -16,20 +79,22 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading }) => {
             Cotizador de Cambio de Aceite
           </h1>
         </div>
-
-        <button
-          onClick={onRefresh}
-          disabled={isLoading}
-          className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-600/80 hover:bg-indigo-600 disabled:bg-indigo-900/50 disabled:cursor-not-allowed transition-colors text-white font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500"
-          aria-label="Actualizar datos"
-        >
-          {isLoading ? (
-            <LoadingSpinner className="w-5 h-5" />
-          ) : (
-            <RefreshIcon className="w-5 h-5" />
-          )}
-          <span className="hidden sm:inline">{isLoading ? 'Actualizando...' : 'Actualizar'}</span>
-        </button>
+        
+        <div className="relative group">
+          <button
+            onClick={handleClick}
+            disabled={isLoading || isSyncing}
+            className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg disabled:cursor-not-allowed transition-all duration-300 text-white font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500 ${style}`}
+            aria-label="Actualizar datos"
+          >
+            {icon}
+            <span className="hidden sm:inline">{text}</span>
+          </button>
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-1.5 text-xs font-medium text-white bg-gray-900/80 rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+              <span className="font-bold">Ctrl + Click</span> para sincronizar con la base de datos central.
+              <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-900/80"></div>
+          </div>
+        </div>
       </div>
     </header>
   );
