@@ -24,19 +24,23 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading }) => {
     setIsSyncing(true);
     setSyncStatus('idle');
     try {
+      // Ahora que CORS está configurado en el servidor de n8n,
+      // podemos hacer una solicitud normal y leer la respuesta.
       const response = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: 'Iniciando sincronización desde cotizador.' })
+        method: 'GET', // Cambiado a GET para coincidir con la configuración del webhook
       });
+      
+      // Verificamos si la respuesta del servidor fue exitosa (ej: status 200).
       if (!response.ok) {
-        throw new Error(`Error del Webhook: ${response.statusText}`);
+        throw new Error(`El servidor de n8n respondió con un error: ${response.statusText}`);
       }
+      
+      // Si la respuesta es OK, significa que el flujo de n8n se completó correctamente.
       setSyncStatus('success');
+
     } catch (error) {
-      console.error("Error al sincronizar con n8n:", error);
+      // Este bloque ahora captura errores de red o respuestas de error del servidor.
+      console.error("Error al sincronizar con el webhook de n8n:", error);
       setSyncStatus('error');
     } finally {
       setIsSyncing(false);
@@ -60,6 +64,7 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading }) => {
       return { icon: <LoadingSpinner className="w-5 h-5" />, text: 'Sincronizando...', style: 'bg-indigo-900/50' };
     }
     if (syncStatus === 'success') {
+      // Ahora este estado es una confirmación real del servidor.
       return { icon: <CheckCircleIcon className="w-5 h-5" />, text: 'Sincronizado', style: 'bg-green-600' };
     }
     if (syncStatus === 'error') {

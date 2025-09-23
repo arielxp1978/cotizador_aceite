@@ -34,19 +34,32 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
   ];
 
   const quoteItems = serviceParts.map(part => {
-    const code = vehicle[part.key as keyof VehiculoServicio] as string | null | undefined;
-    const trimmedCode = code?.trim();
-    // Robust product finding, ignoring whitespace and case-insensitivity
-    const product = trimmedCode ? products.find(p => p.codigo && typeof p.codigo === 'string' && p.codigo.trim().toLowerCase() === trimmedCode.toLowerCase()) : undefined;
+    const codeString = vehicle[part.key as keyof VehiculoServicio] as string | null | undefined;
+    
+    let product: Producto | undefined = undefined;
+    let foundCode: string | undefined = undefined;
+
+    if (codeString) {
+        // Split by ` / ` (slash with spaces), or by `,` or `;` (with optional spaces).
+        const potentialCodes = codeString.split(/\s+\/\s+|\s*,\s*|\s*;\s*/).map(c => c.trim()).filter(Boolean);
+        for (const code of potentialCodes) {
+            const foundProduct = products.find(p => p.codigo && typeof p.codigo === 'string' && p.codigo.trim().toLowerCase() === code.toLowerCase());
+            if (foundProduct) {
+                product = foundProduct;
+                foundCode = code;
+                break;
+            }
+        }
+    }
     
     let cost = 0;
     let mainDescription = `${part.label}: `;
     let details = '';
     let hasIssue = false;
 
-    if (product) {
+    if (product && foundCode) {
       mainDescription += product.marca || product.descripcion.split(" ")[0]; // Prioritize brand name
-      details = `${product.descripcion} | Cod: ${trimmedCode}`;
+      details = `${product.descripcion} | Cod: ${foundCode}`;
       if (part.isOil) {
           const requiredLiters = vehicle.litros_aceite || 0;
           const containerVolume = getContainerVolume(product.descripcion);
@@ -58,9 +71,9 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
       }
     } else {
         cost = 0;
-        if (trimmedCode) {
+        if (codeString?.trim()) {
             mainDescription += 'Producto no encontrado';
-            details = `Cod: ${trimmedCode} (no encontrado)`;
+            details = `Cod: ${codeString.trim()} (no encontrado)`;
             hasIssue = true;
         } else {
             mainDescription += 'No especificado';
