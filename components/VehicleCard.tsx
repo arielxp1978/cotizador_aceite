@@ -1,24 +1,34 @@
 import React from 'react';
-import { VehiculoServicio, Producto } from '../types';
+import { VehiculoServicio, Producto, PriceLevel } from '../types';
 import { FuelIcon, GridIcon, OilCanIcon, SparklesIcon, ToolIcon, WindIcon } from './IconComponents';
 
 interface OilQuoteProps {
   vehicle: VehiculoServicio;
   products: Producto[];
   laborRate: number;
+  priceLevel: PriceLevel;
 }
 
-// Helper function to extract volume from description string (e.g., "Caja 4 x 4L" -> 4)
 const getContainerVolume = (description: string): number => {
-  const match = description.match(/(\d+(\.\d+)?)\s*L/i); // Matches "4L", "5 L", "1.5L" etc.
+  const match = description.match(/(\d+(\.\d+)?)\s*L/i);
   if (match && match[1]) {
     return parseFloat(match[1]);
   }
-  return 1; // Default to 1L if not specified
+  return 1;
+};
+
+const selectPrice = (product: Producto, level: PriceLevel): number => {
+    if (level === 'taller' && typeof product.precio_taller === 'number') {
+        return product.precio_taller;
+    }
+    if (level === 'costo' && typeof product.precio_costo === 'number') {
+        return product.precio_costo;
+    }
+    return product.precio || 0;
 };
 
 
-const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => {
+const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, priceLevel }) => {
     
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(value);
@@ -56,12 +66,12 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
     let hasIssue = false;
 
     if (product && foundCode) {
-      mainDescription += product.marca || product.descripcion.split(" ")[0]; // Prioritize brand name
+      mainDescription += product.marca || product.descripcion.split(" ")[0];
       
       if (part.isOil) {
           const requiredLiters = vehicle.litros_aceite || 0;
           const containerVolume = getContainerVolume(product.descripcion);
-          const containerPrice = product.precio;
+          const containerPrice = selectPrice(product, priceLevel);
           let cotizadoStr = '';
 
           if (containerVolume > 0 && requiredLiters > 0) {
@@ -70,7 +80,6 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
               const pricePerLiter = containerPrice / containerVolume;
 
               const fullContainersCost = fullContainersNeeded * containerPrice;
-              // Use a small tolerance for floating point comparisons
               const looseOilCost = looseOilLiters > 0.01 ? looseOilLiters * pricePerLiter : 0;
               cost = fullContainersCost + looseOilCost;
               
@@ -80,12 +89,12 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
               cotizadoStr = detailParts.join(' + ');
 
           } else {
-              cost = containerPrice; // Fallback for simple case
+              cost = containerPrice;
               cotizadoStr = '1 envase';
           }
           details = `Cotizado: ${cotizadoStr}. Requiere ${requiredLiters}L. | ${product.descripcion} | Cod: ${foundCode}`;
       } else {
-          cost = product.precio;
+          cost = selectPrice(product, priceLevel);
           details = `${product.descripcion} | Cod: ${foundCode}`;
       }
     } else {
@@ -121,10 +130,8 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
   const hasMissingData = quoteItems.some(item => item.hasIssue);
   const totalCost = quoteItems.reduce((sum, item) => sum + item.price, 0);
 
-  // --- START: Logic for breakdown table ---
   const breakdownItems: {label: string, value: string, quantity: string}[] = [];
 
-  // Find the oil product to perform calculations
   const oilCodeString = vehicle.aceite_codigo;
   let oilProduct;
   if (oilCodeString) {
@@ -138,7 +145,6 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
       }
   }
 
-  // Add oil parts to breakdown
   if (oilProduct) {
       const requiredLiters = vehicle.litros_aceite || 0;
       const containerVolume = getContainerVolume(oilProduct.descripcion);
@@ -149,7 +155,7 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
           if (fullContainersNeeded > 0) {
               breakdownItems.push({ label: 'Aceite (Envase)', value: oilProduct.codigo, quantity: `${fullContainersNeeded} u.` });
           }
-          if (looseOilLiters > 0.01) { // Tolerance for float precision
+          if (looseOilLiters > 0.01) {
               breakdownItems.push({ label: 'Aceite Suelto', value: '', quantity: `${looseOilLiters.toFixed(2)} L` });
           }
       } else if (vehicle.aceite_codigo) {
@@ -159,7 +165,6 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
       breakdownItems.push({ label: 'Aceite', value: vehicle.aceite_codigo, quantity: '-' });
   }
 
-  // Add filters to breakdown
   const filterParts = [
     { label: 'Filtro de Aceite', code: vehicle.filtro_aceite_codigo },
     { label: 'Filtro de Aire', code: vehicle.filtro_aire_codigo },
@@ -178,7 +183,6 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
       {label: 'Tipo de Aceite', value: `${vehicle.tipo_aceite || ''} ${vehicle.nomenclatura_aceite || ''}`.trim()},
       {label: 'Próximo Cambio', value: vehicle.intervalo_cambio || 'No especificado'},
   ]
-  // --- END: Logic for breakdown table ---
 
   return (
     <>
@@ -205,11 +209,14 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate }) => 
 
             <div className="flex justify-between items-center text-white">
                 <p className="text-2xl font-bold">TOTAL</p>
-                {hasMissingData ? (
-                    <p className="text-2xl font-bold text-yellow-400">Faltan Códigos</p>
-                ) : (
-                    <p className="text-3xl sm:text-4xl font-extrabold text-green-400">{formatCurrency(totalCost)}</p>
-                )}
+                <div className="text-right">
+                    <p className={`text-3xl sm:text-4xl font-extrabold ${hasMissingData ? 'text-gray-500' : 'text-green-400'}`}>
+                        {formatCurrency(totalCost)}
+                    </p>
+                    {hasMissingData && (
+                        <p className="text-sm font-semibold text-yellow-400 mt-1">Faltan Códigos</p>
+                    )}
+                </div>
             </div>
         </div>
 

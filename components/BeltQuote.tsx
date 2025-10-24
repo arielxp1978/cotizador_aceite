@@ -1,15 +1,25 @@
-
 import React from 'react';
-import { VehiculoServicio, Producto } from '../types';
+import { VehiculoServicio, Producto, PriceLevel } from '../types';
 import { CogIcon, ToolIcon, WaterDropIcon } from './IconComponents';
 
 interface BeltQuoteProps {
   vehicle: VehiculoServicio;
   products: Producto[];
   laborRate: number;
+  priceLevel: PriceLevel;
 }
 
-const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate }) => {
+const selectPrice = (product: Producto, level: PriceLevel): number => {
+    if (level === 'taller' && typeof product.precio_taller === 'number') {
+        return product.precio_taller;
+    }
+    if (level === 'costo' && typeof product.precio_costo === 'number') {
+        return product.precio_costo;
+    }
+    return product.precio || 0;
+};
+
+const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, priceLevel }) => {
     
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(value);
@@ -27,7 +37,6 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate }) =
     let foundCode: string | undefined = undefined;
 
     if (codeString) {
-        // Split by ` / ` (slash with spaces), or by `,` or `;` (with optional spaces).
         const potentialCodes = codeString.split(/\s+\/\s+|\s*,\s*|\s*;\s*/).map(c => c.trim()).filter(Boolean);
         for (const code of potentialCodes) {
             const foundProduct = products.find(p => p.codigo && typeof p.codigo === 'string' && p.codigo.trim().toLowerCase() === code.toLowerCase());
@@ -45,9 +54,9 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate }) =
     let hasIssue = false;
 
     if (product && foundCode) {
-      mainDescription += product.marca || product.descripcion.split(" ")[0]; // Prioritize brand name
+      mainDescription += product.marca || product.descripcion.split(" ")[0];
       details = `${product.descripcion} | Cod: ${foundCode}`;
-      cost = product.precio;
+      cost = selectPrice(product, priceLevel);
     } else {
         cost = 0;
         if (codeString?.trim()) {
@@ -106,11 +115,14 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate }) =
 
             <div className="flex justify-between items-center text-white">
                 <p className="text-2xl font-bold">TOTAL</p>
-                {hasMissingData ? (
-                    <p className="text-2xl font-bold text-yellow-400">Faltan Códigos</p>
-                ) : (
-                    <p className="text-3xl sm:text-4xl font-extrabold text-green-400">{formatCurrency(totalCost)}</p>
-                )}
+                <div className="text-right">
+                    <p className={`text-3xl sm:text-4xl font-extrabold ${hasMissingData ? 'text-gray-500' : 'text-green-400'}`}>
+                        {formatCurrency(totalCost)}
+                    </p>
+                    {hasMissingData && (
+                        <p className="text-sm font-semibold text-yellow-400 mt-1">Faltan Códigos</p>
+                    )}
+                </div>
             </div>
         </div>
     </>

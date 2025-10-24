@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { VehiculoServicio, Producto } from '../types';
 import { supabase } from '../services/supabaseClient';
@@ -6,20 +5,25 @@ import { SUPABASE_URL } from '../config';
 
 // Función para manejar errores específicos y dar mensajes claros al usuario.
 const getErrorMessage = (error: any): string => {
-  // Extrae un mensaje de texto significativo del objeto de error, evitando "[object Object]".
   let errorMessage: string;
+
   if (typeof error === 'string') {
     errorMessage = error;
   } else if (error?.message && typeof error.message === 'string') {
     errorMessage = error.message;
   } else if (error?.details && typeof error.details === 'string') {
-    // A menudo, los errores de Supabase tienen más información en 'details'.
     errorMessage = error.details;
   } else {
-    // Como último recurso, si no hay un mensaje claro.
     errorMessage = 'Ocurrió un error desconocido al procesar la solicitud.';
-    // Loguear el objeto de error completo para la depuración es crucial aquí.
     console.error("Se encontró un objeto de error sin una propiedad .message o .details legible:", error);
+    try {
+      const serializedError = JSON.stringify(error);
+      if (serializedError !== '{}') {
+        errorMessage += ` Detalles: ${serializedError}`;
+      }
+    } catch (e) {
+      // Ignorar errores de serialización (ej. referencias circulares)
+    }
   }
 
   if (errorMessage.includes("No se pudo encontrar la clave 'precio-hora'") || errorMessage.includes("no es un número válido")) {
@@ -55,6 +59,7 @@ export const useVehicles = () => {
   const [vehicles, setVehicles] = useState<VehiculoServicio[]>([]);
   const [products, setProducts] = useState<Producto[]>([]);
   const [laborRate, setLaborRate] = useState<number>(0);
+  const [authKeys, setAuthKeys] = useState<{ taller: string, costo: string }>({ taller: '', costo: '' });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -88,7 +93,12 @@ export const useVehicles = () => {
       `;
       
       const productQuery = `
-        codigo:cod_marca, descripcion, marca, precio:publico
+        codigo:cod_marca, 
+        descripcion, 
+        marca, 
+        precio:publico,
+        precio_taller:taller,
+        precio_costo:costo_c_iva
       `;
 
       const fetchAllProducts = async (): Promise<Producto[]> => {
@@ -112,27 +122,35 @@ export const useVehicles = () => {
 
       // Se obtienen todos los datos en paralelo. La tarifa es un dato crítico.
       const [
-        laborRateResult,
+        variablesResult,
         vehiclesResult,
         productsResult
       ] = await Promise.all([
-        supabase.from('variables').select('valor').eq('clave', 'precio-hora').single(),
+        supabase.from('variables').select('clave, valor').in('clave', ['precio-hora', 'clave_taller', 'clave_costo']),
         supabase.from('vehiculos').select(vehicleQuery).limit(5000),
         fetchAllProducts()
       ]);
 
-      // --- Manejo de la tarifa de mano de obra (crítico) ---
-      if (laborRateResult.error) {
-        throw laborRateResult.error;
-      }
-      if (!laborRateResult.data?.valor) {
-        throw new Error("No se pudo encontrar la clave 'precio-hora' en la tabla 'variables'.");
-      }
-      const newRate = parseFloat(laborRateResult.data.valor);
-      if (isNaN(newRate)) {
-        throw new Error("El valor de 'precio-hora' en la tabla 'variables' no es un número válido.");
-      }
+      // --- Manejo de las variables (tarifa y claves) ---
+      if (variablesResult.error) throw variablesResult.error;
+      if (!variablesResult.data) throw new Error("No se pudo obtener datos de la tabla 'variables'.");
+      
+      const variablesMap = variablesResult.data.reduce((acc, curr) => {
+        acc[curr.clave] = curr.valor;
+        return acc;
+      }, {} as Record<string, string>);
+
+      const rateStr = variablesMap['precio-hora'];
+      if (!rateStr) throw new Error("No se pudo encontrar la clave 'precio-hora' en la tabla 'variables'.");
+      
+      const newRate = parseFloat(rateStr);
+      if (isNaN(newRate)) throw new Error("El valor de 'precio-hora' no es un número válido.");
+      
       setLaborRate(newRate);
+      setAuthKeys({
+        taller: variablesMap['clave_taller'] || '',
+        costo: variablesMap['clave_costo'] || ''
+      });
       
       // --- Manejo del resto de los datos ---
       if (vehiclesResult.error) throw vehiclesResult.error;
@@ -142,7 +160,13 @@ export const useVehicles = () => {
       setLastUpdated(new Date().toISOString());
 
     } catch (err: any) {
-      console.error("Error detallado al cargar datos:", err);
+      console.error("Error detallado al cargar datos:");
+      // Usar console.dir para una mejor inspección del objeto en la consola del navegador.
+      if (typeof console.dir === 'function') {
+          console.dir(err);
+      } else {
+          console.error(err);
+      }
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
@@ -161,6 +185,7 @@ export const useVehicles = () => {
     vehicles,
     products,
     laborRate,
+    authKeys,
     loading,
     error,
     warning,

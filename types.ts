@@ -25,6 +25,10 @@ export interface VehiculoServicio {
 export interface Producto {
   codigo: string;
   descripcion: string;
-  precio: number;
+  precio: number; // Corresponde a 'publico'
+  precio_taller: number | null;
+  precio_costo: number | null;
   marca?: string;
 }
+
+export type PriceLevel = 'publico' | 'taller' | 'costo';
