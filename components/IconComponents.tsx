@@ -117,3 +117,12 @@ export const CheckIcon: React.FC<IconProps> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
 );
+
+export const SwitchVerticalIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="15 14 19 18 15 22" />
+        <line x1="19" y1="18" x2="5" y2="18" />
+        <polyline points="9 10 5 6 9 2" />
+        <line x1="5" y1="6" x2="19" y2="6" />
+    </svg>
+);
