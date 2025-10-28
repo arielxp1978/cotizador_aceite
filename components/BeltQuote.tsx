@@ -23,6 +23,11 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
   const [selectedProductCodes, setSelectedProductCodes] = useState<Record<string, string>>({});
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
 
+  const priceColorClass =
+    priceLevel === 'taller' ? 'text-yellow-400' :
+    priceLevel === 'costo' ? 'text-red-400' :
+    'text-white';
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(value);
   }
@@ -132,7 +137,7 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
                                 </div>
                             </div>
                             <div className="flex items-center gap-4 self-end sm:self-center ml-auto">
-                                <p className={`font-bold text-lg ${item.hasIssue ? 'text-yellow-400' : 'text-white'}`}>
+                                <p className={`font-bold text-lg ${item.hasIssue ? 'text-yellow-400' : priceColorClass}`}>
                                     {formatCurrency(item.price)}
                                 </p>
                                 {item.alternatives.length > 1 && (
@@ -163,7 +168,7 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
                                             <p className="text-xs text-gray-500 font-mono">Cod: {alt.codigo}</p>
                                         </div>
                                     </div>
-                                    <p className="font-bold text-white">{formatCurrency(selectPrice(alt, priceLevel))}</p>
+                                    <p className={`font-bold ${priceColorClass}`}>{formatCurrency(selectPrice(alt, priceLevel))}</p>
                                 </label>
                                 );
                             })}
