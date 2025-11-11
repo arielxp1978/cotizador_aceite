@@ -209,7 +209,11 @@ export default function App(): React.ReactNode {
         };
     }, []);
 
-    if (route.startsWith('#/admin')) {
+    // Lógica de enrutamiento más robusta
+    const isAdminRoute = route.startsWith('#/admin');
+    const isPublicRoute = route === '' || route === '#' || route === '#/';
+
+    if (isAdminRoute) {
         return <AdminPage 
             route={route}
             vehicles={vehicles}
@@ -220,6 +224,7 @@ export default function App(): React.ReactNode {
         />;
     }
     
+    // Por defecto, o si es una ruta pública explícita, mostrar la app principal.
     return <MainApp 
         vehicles={vehicles}
         products={products}
