@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PriceLevel } from '../types';
-import { RefreshIcon, LockIcon, UnlockIcon, ChevronDownIcon, CheckIcon } from './IconComponents';
+import { useAuth } from '../auth/AuthContext';
+import { RefreshIcon, LockIcon, UnlockIcon, ChevronDownIcon, CheckIcon, UserCircleIcon, LogoutIcon } from './IconComponents';
 
 interface HeaderProps {
   onRefresh: () => void;
@@ -21,8 +22,8 @@ const priceLevels: PriceLevel[] = ['publico', 'taller', 'costo'];
 const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, priceLevel, unlockedLevels, onLevelChange }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const { user, signOut } = useAuth();
 
-  // Cierra el menú desplegable si se hace clic fuera de él
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -40,16 +41,21 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, priceLevel, unloc
     setIsOpen(false);
   };
 
+  const handleAdminClick = () => {
+    window.location.hash = '#/admin';
+    setIsOpen(false);
+  };
+
   return (
     <header className="bg-gray-800/50 backdrop-blur-sm sticky top-0 z-40 border-b border-gray-700">
       <div className="container mx-auto px-4 py-3">
         <div className="flex justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
+          <a href="/#" className="flex items-center gap-3">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
             </svg>
             <h1 className="text-xl font-bold text-white tracking-tight hidden sm:block">Cotizador Rápido</h1>
-          </div>
+          </a>
 
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="relative" ref={wrapperRef}>
@@ -86,6 +92,19 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, priceLevel, unloc
                       </button>
                     );
                   })}
+                  {!user && (
+                    <>
+                      <div className="my-1 border-t border-gray-700" role="separator"></div>
+                      <button
+                        onClick={handleAdminClick}
+                        className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-gray-200 hover:bg-indigo-600/30 transition-colors"
+                        role="menuitem"
+                      >
+                        <UserCircleIcon className="w-4 h-4 text-gray-400" />
+                        <span>Administrador</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -98,6 +117,17 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, priceLevel, unloc
             >
               <RefreshIcon className={`w-6 h-6 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
+
+            {user && (
+              <>
+                <a href="#/admin" className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition" aria-label="Panel de Administración">
+                  <UserCircleIcon className="w-6 h-6" />
+                </a>
+                <button onClick={signOut} className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition" aria-label="Cerrar Sesión">
+                  <LogoutIcon className="w-6 h-6" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,0 +1,149 @@
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { searchProducts } from '../../services/adminService';
+import { Producto } from '../../types';
+import { LoadingSpinner, SearchIcon } from '../IconComponents';
+
+interface ProductSelectorModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSelect: (selectedCodes: string[]) => void;
+    title: string;
+    initialSelectedCodes: string[];
+    allProducts: Producto[];
+}
+
+const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
+    isOpen,
+    onClose,
+    onSelect,
+    title,
+    initialSelectedCodes,
+    allProducts
+}) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [rubroFilter, setRubroFilter] = useState('');
+    const [subrubroFilter, setSubrubroFilter] = useState('');
+    const [searchResults, setSearchResults] = useState<Producto[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set(initialSelectedCodes));
+
+    const rubros = useMemo(() => [...new Set(allProducts.map(p => p.rubro).filter(Boolean))], [allProducts]);
+    const subrubros = useMemo(() => {
+        if (!rubroFilter) return [];
+        return [...new Set(allProducts.filter(p => p.rubro === rubroFilter).map(p => p.subrubro).filter(Boolean))];
+    }, [allProducts, rubroFilter]);
+    
+    const performSearch = useCallback(async () => {
+        setLoading(true);
+        try {
+            const results = await searchProducts(searchTerm, rubroFilter, subrubroFilter);
+            setSearchResults(results);
+        } catch (error) {
+            console.error("Error searching products", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [searchTerm, rubroFilter, subrubroFilter]);
+
+    useEffect(() => {
+        const debounceTimer = setTimeout(() => {
+            performSearch();
+        }, 300);
+        return () => clearTimeout(debounceTimer);
+    }, [performSearch]);
+    
+    useEffect(() => {
+        // Reset subrubro when rubro changes
+        setSubrubroFilter('');
+    }, [rubroFilter]);
+
+    if (!isOpen) return null;
+    
+    const handleToggleSelection = (code: string) => {
+        setSelectedCodes(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(code)) {
+                newSet.delete(code);
+            } else {
+                newSet.add(code);
+            }
+            return newSet;
+        });
+    };
+
+    const handleConfirm = () => {
+        onSelect(Array.from(selectedCodes));
+        onClose();
+    };
+    
+    const selectedProducts = useMemo(() => {
+        return Array.from(selectedCodes).map(code => allProducts.find(p => p.codigo === code)).filter((p): p is Producto => p !== undefined);
+    }, [selectedCodes, allProducts]);
+
+    return (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl border border-gray-700 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="p-4 border-b border-gray-700 flex-shrink-0">
+                    <h3 className="text-xl font-bold text-white">Seleccionar: {title}</h3>
+                </div>
+                <div className="flex flex-col md:flex-row flex-grow min-h-0">
+                    <div className="w-full md:w-2/3 p-4 flex flex-col">
+                        {/* Filters */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 flex-shrink-0">
+                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar por código/desc..." className="sm:col-span-3 bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                            <select value={rubroFilter} onChange={e => setRubroFilter(e.target.value)} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Todos los Rubros</option>
+                                {rubros.map(r => <option key={r} value={r}>{r}</option>)}
+                            </select>
+                            <select value={subrubroFilter} onChange={e => setSubrubroFilter(e.target.value)} disabled={!rubroFilter} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50">
+                                <option value="">Todos los Sub-rubros</option>
+                                {subrubros.map(sr => <option key={sr} value={sr}>{sr}</option>)}
+                            </select>
+                        </div>
+                        {/* Search Results */}
+                        <div className="flex-grow overflow-y-auto">
+                            {loading ? <div className="flex justify-center items-center h-full"><LoadingSpinner /></div> : (
+                                <ul className="space-y-2">
+                                    {searchResults.map(product => (
+                                        <li key={product.codigo}>
+                                            <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedCodes.has(product.codigo) ? 'bg-indigo-600/30' : 'hover:bg-indigo-600/10'}`}>
+                                                <input type="checkbox" checked={selectedCodes.has(product.codigo)} onChange={() => handleToggleSelection(product.codigo)} className="form-checkbox h-5 w-5 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800" />
+                                                <div>
+                                                    <p className="font-semibold text-white">{product.marca} - {product.descripcion}</p>
+                                                    <p className="font-mono text-xs text-gray-500">{product.codigo}</p>
+                                                </div>
+                                            </label>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                             {!loading && searchResults.length === 0 && <p className="text-center text-gray-500 py-8">No se encontraron productos.</p>}
+                        </div>
+                    </div>
+                    <div className="w-full md:w-1/3 bg-gray-900/50 p-4 flex flex-col border-t md:border-t-0 md:border-l border-gray-700">
+                        <h4 className="text-lg font-semibold text-white mb-3 flex-shrink-0">Seleccionados ({selectedCodes.size})</h4>
+                        <div className="flex-grow overflow-y-auto space-y-2">
+                             {selectedProducts.map(p => (
+                                <div key={p.codigo} className="flex items-center justify-between bg-gray-800 p-2 rounded text-sm">
+                                    <div>
+                                        <p className="font-semibold text-white">{p.marca}</p>
+                                        <p className="font-mono text-xs text-gray-500">{p.codigo}</p>
+                                    </div>
+                                    <button onClick={() => handleToggleSelection(p.codigo)} className="p-1 text-red-500 hover:text-red-400">&times;</button>
+                                </div>
+                             ))}
+                             {selectedProducts.length === 0 && <p className="text-center text-gray-500 pt-8">Ningún producto seleccionado.</p>}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-4 border-t border-gray-700 flex justify-end gap-3 flex-shrink-0">
+                    <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-700 text-white font-semibold hover:bg-gray-600 transition">Cancelar</button>
+                    <button onClick={handleConfirm} className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-500 transition">Confirmar Selección</button>
+                </div>
+                 <style>{`.form-checkbox { appearance: none; border-radius: 4px; border-width: 2px; } .form-checkbox:checked { background-color: currentColor; } .form-checkbox:checked::before { content: "✓"; display: block; color: #fff; text-align: center; line-height: 1; font-size: 0.8rem; }`}</style>
+            </div>
+        </div>
+    );
+};
+
+export default ProductSelectorModal;

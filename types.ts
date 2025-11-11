@@ -1,34 +1,44 @@
-export interface VehiculoServicio {
-  cod_vehiculo: number;
-  marca: string;
-  modelo: string;
-  version?: string;
-  ano?: number;
-  motor_cil?: string;
-  motor_cod?: string;
-  tipo_aceite: string;
-  nomenclatura_aceite: string;
-  aceite_codigo: string;
-  litros_aceite: number;
-  intervalo_cambio?: string;
-  filtro_aire_codigo: string;
-  filtro_aceite_codigo: string;
-  filtro_combustible_codigo: string;
-  filtro_habitaculo_codigo: string;
-  tiempo_mano_obra_minutos: number;
-  // --- Campos para el servicio de Correa de Distribución ---
-  correa_distribucion_codigo?: string;
-  bomba_agua_codigo?: string;
-  tiempo_mano_obra_correa_minutos?: number;
-}
+export type PriceLevel = 'publico' | 'taller' | 'costo';
 
 export interface Producto {
   codigo: string;
   descripcion: string;
-  precio: number; // Corresponde a 'publico'
+  marca: string | null;
+  rubro: string | null;
+  subrubro: string | null;
+  precio: number;
   precio_taller: number | null;
   precio_costo: number | null;
-  marca?: string;
 }
 
-export type PriceLevel = 'publico' | 'taller' | 'costo';
+export interface VehiculoServicio {
+  cod_vehiculo: number;
+  marca: string;
+  modelo: string;
+  version: string | null;
+  ano: number | null;
+  motor_cil: string | null;
+  motor_cod: string | null;
+  
+  // Servicio de Aceite
+  tipo_aceite: string | null;
+  nomenclatura_aceite: string | null;
+  litros_aceite: number | null;
+  intervalo_cambio: string | null;
+  tiempo_mano_obra_minutos: number | null;
+  aceite_motor_cod: string[] | null;
+  filtro_aceite_cod: string[] | null;
+  filtro_aire_cod: string[] | null;
+  filtro_combustible_cod: string[] | null;
+  filtro_habitaculo_cod: string[] | null;
+
+  // Servicio de Correa
+  correa_distribucion_cod: string[] | null;
+  tensor_distribucion_cod: string[] | null;
+  rodillos_cod: string[] | null;
+  bomba_agua_cod: string[] | null;
+  tiempo_mano_obra_correa_minutos: number | null;
+  
+  // Extras y Observaciones
+  observaciones: string | null;
+}

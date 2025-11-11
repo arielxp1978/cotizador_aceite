@@ -33,28 +33,22 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
   }
 
   const serviceParts = useMemo(() => [
-    { key: 'correa_distribucion_codigo', label: 'Kit Distribución', icon: <CogIcon className="w-6 h-6 text-cyan-400" /> },
-    { key: 'bomba_agua_codigo', label: 'Bomba de Agua', icon: <WaterDropIcon className="w-6 h-6 text-blue-400" /> },
+    { key: 'correa_distribucion_cod', label: 'Kit Distribución', icon: <CogIcon className="w-6 h-6 text-cyan-400" /> },
+    { key: 'tensor_distribucion_cod', label: 'Tensor Distribución', icon: <CogIcon className="w-6 h-6 text-cyan-300" /> },
+    { key: 'rodillos_cod', label: 'Rodillos', icon: <CogIcon className="w-6 h-6 text-cyan-200" /> },
+    { key: 'bomba_agua_cod', label: 'Bomba de Agua', icon: <WaterDropIcon className="w-6 h-6 text-blue-400" /> },
   ], []);
 
   const quoteItemsData = useMemo(() => {
     return serviceParts.map(part => {
-      const codeString = vehicle[part.key as keyof VehiculoServicio] as string | null | undefined;
-      let alternatives: Producto[] = [];
-      let unavailableCodes: string[] = [];
+      const potentialCodes = (vehicle[part.key as keyof VehiculoServicio] as string[] | null) || [];
+      const alternatives = potentialCodes
+        .map(code => products.find(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()))
+        .filter((p): p is Producto => p !== undefined);
+      
+      const unavailableCodes = potentialCodes.filter(code => !products.some(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()));
 
-      if (codeString) {
-        const potentialCodes = codeString.split(/\s+\/\s+|\s*,\s*|\s*;\s*/).map(c => c.trim()).filter(Boolean);
-        potentialCodes.forEach(code => {
-          const foundProduct = products.find(p => p.codigo?.trim().toLowerCase() === code.toLowerCase());
-          if (foundProduct) {
-            alternatives.push(foundProduct);
-          } else {
-            unavailableCodes.push(code);
-          }
-        });
-      }
-      return { ...part, alternatives, unavailableCodes };
+      return { ...part, alternatives, unavailableCodes, potentialCodes };
     });
   }, [vehicle, products, serviceParts]);
   
@@ -87,14 +81,14 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
     let hasIssue = false;
 
     if (product) {
-      mainDescription += product.marca || product.descripcion.split(" ")[0];
+      mainDescription += product.marca || 'Marca desconocida';
       details = `${product.descripcion} | Cod: ${product.codigo}`;
       cost = selectPrice(product, priceLevel);
     } else {
         cost = 0;
-        if (itemData.unavailableCodes.length > 0) {
+        if (itemData.potentialCodes.length > 0) {
             mainDescription += 'Producto no encontrado';
-            details = `Cod: ${itemData.unavailableCodes.join(' / ')} (no encontrado)`;
+            details = `Cod: ${itemData.potentialCodes.join(' / ')} (no encontrado)`;
             hasIssue = true;
         } else {
             mainDescription += 'No especificado';
@@ -113,6 +107,8 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
     price: laborCost,
     hasIssue: false,
     alternatives: [],
+    potentialCodes: [],
+    unavailableCodes: [],
   }];
   
   const totalCost = finalQuoteItems.reduce((sum, item) => sum + item.price, 0);
@@ -123,60 +119,73 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
         <div className="bg-gray-900/50 rounded-xl p-6">
             <h3 className="text-2xl font-bold text-white mb-6">Cotización de Cambio de Correa</h3>
             <div className="space-y-3 mb-6">
-                {finalQuoteItems.map((item) => (
-                    <div key={item.key} className="bg-gray-800 rounded-lg transition-shadow hover:shadow-lg">
-                        <div 
-                          className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-2 ${item.alternatives.length > 1 ? 'cursor-pointer' : ''}`}
-                          onClick={() => item.alternatives.length > 1 && toggleExpandRow(item.key)}
-                        >
-                            <div className="flex items-center gap-4">
-                                {item.icon}
-                                <div>
-                                    <p className="font-semibold text-white">{item.description}</p>
-                                    <p className="text-sm text-gray-400">{item.details}</p>
+                {finalQuoteItems.map((item) => {
+                    const hasOptions = item.potentialCodes.length > 1;
+                    return (
+                        <div key={item.key} className="bg-gray-800 rounded-lg transition-shadow hover:shadow-lg">
+                            <div 
+                              className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-2 ${hasOptions ? 'cursor-pointer' : ''}`}
+                              onClick={() => hasOptions && toggleExpandRow(item.key)}
+                            >
+                                <div className="flex items-center gap-4">
+                                    {item.icon}
+                                    <div>
+                                        <p className="font-semibold text-white">{item.description}</p>
+                                        <p className="text-sm text-gray-400">{item.details}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-4 self-end sm:self-center ml-auto">
+                                    <p className={`font-bold text-lg ${item.hasIssue ? 'text-yellow-400' : priceColorClass}`}>
+                                        {formatCurrency(item.price)}
+                                    </p>
+                                    {hasOptions && (
+                                        <SwitchVerticalIcon className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${expandedRowKey === item.key ? 'text-indigo-400 rotate-180' : ''}`} />
+                                    )}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-4 self-end sm:self-center ml-auto">
-                                <p className={`font-bold text-lg ${item.hasIssue ? 'text-yellow-400' : priceColorClass}`}>
-                                    {formatCurrency(item.price)}
-                                </p>
-                                {item.alternatives.length > 1 && (
-                                    <SwitchVerticalIcon className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${expandedRowKey === item.key ? 'text-indigo-400' : ''}`} />
+                            {expandedRowKey === item.key && (
+                            <div className="p-4 border-t border-gray-700/50 animate-fade-in-fast">
+                                <p className="text-sm font-semibold text-gray-300 mb-3">Opciones disponibles:</p>
+                                {item.alternatives.length > 0 && (
+                                    <fieldset className="space-y-2">
+                                        <legend className="sr-only">Seleccionar producto</legend>
+                                        {item.alternatives.map(alt => {
+                                            const isSelected = selectedProductCodes[item.key] === alt.codigo;
+                                            return (
+                                            <label key={alt.codigo} className={`flex justify-between items-center p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-indigo-600/30' : 'hover:bg-indigo-600/10'}`}>
+                                                <div className="flex items-center gap-4">
+                                                    <input 
+                                                        type="radio" 
+                                                        name={`product-option-${item.key}`}
+                                                        value={alt.codigo}
+                                                        checked={isSelected}
+                                                        onChange={() => handleProductSelect(item.key, alt.codigo)}
+                                                        className="form-radio h-4 w-4 text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800"
+                                                    />
+                                                    <div>
+                                                        <p className="font-semibold text-white">{alt.marca} - {alt.descripcion}</p>
+                                                        <p className="text-xs text-gray-500 font-mono">Cod: {alt.codigo}</p>
+                                                    </div>
+                                                </div>
+                                                <p className={`font-bold ${priceColorClass}`}>{formatCurrency(selectPrice(alt, priceLevel))}</p>
+                                            </label>
+                                            );
+                                        })}
+                                    </fieldset>
+                                )}
+                                {item.unavailableCodes.length > 0 && (
+                                    <div className="mt-4 p-3 bg-yellow-900/40 rounded-lg text-sm border border-yellow-700/50">
+                                    <p className="font-semibold text-yellow-300 mb-2">Códigos no encontrados en la base de productos:</p>
+                                    <ul className="list-disc list-inside text-yellow-400 space-y-1">
+                                        {item.unavailableCodes.map(code => <li key={code}><span className="font-mono bg-gray-700 px-1 rounded">{code}</span></li>)}
+                                    </ul>
+                                    </div>
                                 )}
                             </div>
+                            )}
                         </div>
-                        {expandedRowKey === item.key && (
-                        <div className="p-4 border-t border-gray-700/50 animate-fade-in-fast">
-                            <p className="text-sm font-semibold text-gray-300 mb-3">Opciones disponibles:</p>
-                            <fieldset className="space-y-2">
-                            <legend className="sr-only">Seleccionar producto</legend>
-                            {item.alternatives.map(alt => {
-                                const isSelected = selectedProductCodes[item.key] === alt.codigo;
-                                return (
-                                <label key={alt.codigo} className={`flex justify-between items-center p-3 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-indigo-600/30' : 'hover:bg-indigo-600/10'}`}>
-                                    <div className="flex items-center gap-4">
-                                        <input 
-                                            type="radio" 
-                                            name={`product-option-${item.key}`}
-                                            value={alt.codigo}
-                                            checked={isSelected}
-                                            onChange={() => handleProductSelect(item.key, alt.codigo)}
-                                            className="form-radio h-4 w-4 text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800"
-                                        />
-                                        <div>
-                                            <p className="font-semibold text-white">{alt.marca} - {alt.descripcion}</p>
-                                            <p className="text-xs text-gray-500 font-mono">Cod: {alt.codigo}</p>
-                                        </div>
-                                    </div>
-                                    <p className={`font-bold ${priceColorClass}`}>{formatCurrency(selectPrice(alt, priceLevel))}</p>
-                                </label>
-                                );
-                            })}
-                            </fieldset>
-                        </div>
-                        )}
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             <div className="border-t-2 border-dashed border-gray-700 my-6"></div>
