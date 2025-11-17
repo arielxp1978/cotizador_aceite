@@ -4,6 +4,7 @@ export interface Producto {
   codigo: string;
   descripcion: string;
   marca: string | null;
+  proveedor: string | null;
   rubro: string | null;
   subrubro: string | null;
   precio: number;

@@ -81,6 +81,7 @@ export const supabaseToProduct = (item: any): Producto => ({
     codigo: item.cod_marca,
     descripcion: item.descripcion,
     marca: item.marca,
+    proveedor: item.proveedor,
     rubro: item.rubro,
     subrubro: item.subrubro,
     precio: item.publico,

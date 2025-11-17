@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { VehiculoServicio, Producto, PriceLevel } from '../types';
-import { FuelIcon, GridIcon, OilCanIcon, SparklesIcon, ToolIcon, WindIcon, SwitchVerticalIcon } from './IconComponents';
+import { FuelIcon, GridIcon, OilCanIcon, SparklesIcon, ToolIcon, WindIcon, SwitchVerticalIcon, FileTextIcon } from './IconComponents';
 
 interface OilQuoteProps {
   vehicle: VehiculoServicio;
@@ -30,6 +30,7 @@ const selectPrice = (product: Producto, level: PriceLevel): number => {
 const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, priceLevel }) => {
   const [selectedProductCodes, setSelectedProductCodes] = useState<Record<string, string>>({});
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
+  const [includedItems, setIncludedItems] = useState<Set<string>>(new Set());
 
   const priceColorClass =
     priceLevel === 'taller' ? 'text-yellow-400' :
@@ -50,30 +51,94 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
 
   const quoteItemsData = useMemo(() => {
     return serviceParts.map(part => {
-      const potentialCodes = (vehicle[part.key as keyof VehiculoServicio] as string[] | null) || [];
-      const alternatives = potentialCodes
-        .map(code => products.find(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()))
-        .filter((p): p is Producto => p !== undefined);
-      
-      const unavailableCodes = potentialCodes.filter(code => !products.some(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()));
+        if (part.isOil) {
+            const defaultCodes = vehicle.aceite_motor_cod || [];
+            const defaultProducts = defaultCodes
+                .map(code => products.find(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()))
+                .filter((p): p is Producto => p !== undefined);
 
-      return { ...part, alternatives, unavailableCodes, potentialCodes };
+            const viscosity = vehicle.nomenclatura_aceite?.trim().toLowerCase();
+            let viscosityAlternatives: Producto[] = [];
+            if (viscosity) {
+                const normalizedViscosity = viscosity.replace(/[-\s]/g, '');
+                viscosityAlternatives = products.filter(p => {
+                    const isOilProduct = p.subrubro?.toLowerCase() === 'aceite motor' || p.rubro?.toLowerCase() === 'aceite';
+                    if (!isOilProduct) return false;
+                    
+                    const desc = p.descripcion?.toLowerCase();
+                    if (!desc) return false;
+                    
+                    const normalizedDesc = desc.replace(/[-\s]/g, '');
+                    return normalizedDesc.includes(normalizedViscosity);
+                });
+            }
+
+            const combinedAlternatives = new Map<string, Producto>();
+            defaultProducts.forEach(p => combinedAlternatives.set(p.codigo, p));
+            viscosityAlternatives.forEach(p => {
+                if (!combinedAlternatives.has(p.codigo)) {
+                    combinedAlternatives.set(p.codigo, p);
+                }
+            });
+            
+            const defaultProductCodes = new Set(defaultProducts.map(p => p.codigo));
+            const finalAlternatives = Array.from(combinedAlternatives.values()).filter(p => {
+                if (defaultProductCodes.has(p.codigo)) {
+                    return true;
+                }
+                const volume = getContainerVolume(p.descripcion);
+                return volume <= 4;
+            });
+
+            const unavailableCodes = defaultCodes.filter(code => !products.some(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()));
+            const potentialCodes = finalAlternatives.map(p => p.codigo);
+
+            return { ...part, alternatives: finalAlternatives, unavailableCodes, potentialCodes };
+        }
+
+        const potentialCodes = (vehicle[part.key as keyof VehiculoServicio] as string[] | null) || [];
+        const alternatives = potentialCodes
+            .map(code => products.find(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()))
+            .filter((p): p is Producto => p !== undefined);
+        
+        const unavailableCodes = potentialCodes.filter(code => !products.some(p => p.codigo?.trim().toLowerCase() === code.trim().toLowerCase()));
+
+        return { ...part, alternatives, unavailableCodes, potentialCodes };
     });
   }, [vehicle, products, serviceParts]);
 
   useEffect(() => {
     const initialSelections: Record<string, string> = {};
+    const initialInclusions = new Set<string>();
+    
     quoteItemsData.forEach(item => {
       if (item.alternatives.length > 0) {
         initialSelections[item.key] = item.alternatives[0].codigo;
+        initialInclusions.add(item.key);
       }
     });
+
+    initialInclusions.add('mano_obra_aceite');
+
     setSelectedProductCodes(initialSelections);
+    setIncludedItems(initialInclusions);
     setExpandedRowKey(null);
   }, [quoteItemsData]);
 
   const handleProductSelect = (itemKey: string, productCode: string) => {
     setSelectedProductCodes(prev => ({ ...prev, [itemKey]: productCode }));
+  };
+  
+  const handleToggleIncluded = (itemKey: string) => {
+    setIncludedItems(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(itemKey)) {
+            newSet.delete(itemKey);
+        } else {
+            newSet.add(itemKey);
+        }
+        return newSet;
+    });
   };
 
   const toggleExpandRow = (itemKey: string) => {
@@ -90,7 +155,10 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
     let hasIssue = false;
 
     if (product) {
-      mainDescription += product.marca || 'Marca desconocida';
+      mainDescription += `${product.marca || 'Marca desconocida'}`;
+      if (priceLevel === 'costo') {
+        mainDescription += ` (${product.proveedor || 'Genérico'})`;
+      }
       
       if (itemData.isOil) {
           const requiredLiters = vehicle.litros_aceite || 0;
@@ -99,16 +167,23 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
           let cotizadoStr = '';
 
           if (containerVolume > 0 && requiredLiters > 0) {
-              const fullContainersNeeded = Math.floor(requiredLiters / containerVolume);
-              const looseOilLiters = requiredLiters % containerVolume;
-              const pricePerLiter = containerPrice / containerVolume;
+              if (requiredLiters <= containerVolume) {
+                  cost = containerPrice;
+                  const leftover = containerVolume - requiredLiters;
+                  const leftoverStr = leftover % 1 === 0 ? leftover.toString() : leftover.toFixed(2);
+                  cotizadoStr = `1 x ${containerVolume}L (Sobra ${leftoverStr}L)`;
+              } else {
+                  const fullContainersNeeded = Math.floor(requiredLiters / containerVolume);
+                  const looseOilLiters = requiredLiters % containerVolume;
+                  const pricePerLiter = containerPrice / containerVolume;
 
-              cost = (fullContainersNeeded * containerPrice) + (looseOilLiters > 0.01 ? looseOilLiters * pricePerLiter : 0);
-              
-              const detailParts = [];
-              if (fullContainersNeeded > 0) detailParts.push(`${fullContainersNeeded} x ${containerVolume}L`);
-              if (looseOilLiters > 0.01) detailParts.push(`${looseOilLiters.toFixed(2)}L suelto`);
-              cotizadoStr = detailParts.join(' + ');
+                  cost = (fullContainersNeeded * containerPrice) + (looseOilLiters > 0.01 ? looseOilLiters * pricePerLiter : 0);
+                  
+                  const detailParts = [];
+                  if (fullContainersNeeded > 0) detailParts.push(`${fullContainersNeeded} x ${containerVolume}L`);
+                  if (looseOilLiters > 0.01) detailParts.push(`${looseOilLiters.toFixed(2)}L suelto`);
+                  cotizadoStr = detailParts.join(' + ');
+              }
           } else {
               cost = containerPrice;
               cotizadoStr = '1 envase';
@@ -147,29 +222,41 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
     unavailableCodes: [],
   }];
   
-  const totalCost = finalQuoteItems.reduce((sum, item) => sum + item.price, 0);
-  const hasMissingData = finalQuoteItems.some(item => item.hasIssue);
+  const totalCost = finalQuoteItems.reduce((sum, item) => {
+    if (includedItems.has(item.key)) {
+      return sum + item.price;
+    }
+    return sum;
+  }, 0);
+
+  const hasMissingData = finalQuoteItems.some(item => item.hasIssue && includedItems.has(item.key));
 
   const breakdownItems: {label: string, value: string, quantity: string}[] = [];
   const oilItem = quoteItems.find(item => item.isOil);
-  const selectedOilProduct = oilItem?.alternatives.find(p => p.codigo === selectedProductCodes[oilItem.key]);
   
-  if (selectedOilProduct) {
-      const requiredLiters = vehicle.litros_aceite || 0;
-      const containerVolume = getContainerVolume(selectedOilProduct.descripcion);
-      if (containerVolume > 0 && requiredLiters > 0) {
-          const fullContainersNeeded = Math.floor(requiredLiters / containerVolume);
-          const looseOilLiters = requiredLiters % containerVolume;
-          if (fullContainersNeeded > 0) breakdownItems.push({ label: 'Aceite (Envase)', value: selectedOilProduct.codigo, quantity: `${fullContainersNeeded} u.` });
-          if (looseOilLiters > 0.01) breakdownItems.push({ label: 'Aceite Suelto', value: '', quantity: `${looseOilLiters.toFixed(2)} L` });
-      } else {
-           breakdownItems.push({ label: 'Aceite', value: selectedOilProduct.codigo, quantity: '1 u.' });
+  if (oilItem && includedItems.has(oilItem.key)) {
+      const selectedOilProduct = oilItem.alternatives.find(p => p.codigo === selectedProductCodes[oilItem.key]);
+      if (selectedOilProduct) {
+          const requiredLiters = vehicle.litros_aceite || 0;
+          const containerVolume = getContainerVolume(selectedOilProduct.descripcion);
+          if (containerVolume > 0 && requiredLiters > 0) {
+              if (requiredLiters <= containerVolume) {
+                  breakdownItems.push({ label: 'Aceite (Envase)', value: selectedOilProduct.codigo, quantity: '1 u.' });
+              } else {
+                  const fullContainersNeeded = Math.floor(requiredLiters / containerVolume);
+                  const looseOilLiters = requiredLiters % containerVolume;
+                  if (fullContainersNeeded > 0) breakdownItems.push({ label: 'Aceite (Envase)', value: selectedOilProduct.codigo, quantity: `${fullContainersNeeded} u.` });
+                  if (looseOilLiters > 0.01) breakdownItems.push({ label: 'Aceite Suelto', value: '', quantity: `${looseOilLiters.toFixed(2)} L` });
+              }
+          } else {
+               breakdownItems.push({ label: 'Aceite', value: selectedOilProduct.codigo, quantity: '1 u.' });
+          }
+      } else if (vehicle.aceite_motor_cod && vehicle.aceite_motor_cod.length > 0) {
+          breakdownItems.push({ label: 'Aceite', value: vehicle.aceite_motor_cod[0], quantity: '-' });
       }
-  } else if (vehicle.aceite_motor_cod && vehicle.aceite_motor_cod.length > 0) {
-      breakdownItems.push({ label: 'Aceite', value: vehicle.aceite_motor_cod[0], quantity: '-' });
   }
 
-  quoteItems.filter(item => !item.isOil).forEach(item => {
+  quoteItems.filter(item => !item.isOil && includedItems.has(item.key)).forEach(item => {
       const selectedProduct = item.alternatives.find(p => p.codigo === selectedProductCodes[item.key]);
       breakdownItems.push({
           label: item.label,
@@ -186,25 +273,58 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
   return (
     <>
       <div className="bg-gray-900/50 rounded-xl p-6">
-          <h3 className="text-2xl font-bold text-white mb-6">Cotización de Cambio de Aceite</h3>
+          <h3 className="text-2xl font-bold text-white mb-4">Cotización de Cambio de Aceite</h3>
+          
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-gray-300 border-b border-gray-700 pb-4 mb-6 text-sm">
+            {vehicle.litros_aceite ? (
+                <div className="flex items-center gap-2" title="Litros de aceite requeridos">
+                    <OilCanIcon className="w-5 h-5 text-yellow-500" />
+                    <div>
+                        <span className="text-xs text-gray-500">Capacidad</span>
+                        <p className="font-bold">{vehicle.litros_aceite} Litros</p>
+                    </div>
+                </div>
+            ) : null}
+            {(vehicle.nomenclatura_aceite || vehicle.tipo_aceite) ? (
+                <div className="flex items-center gap-2" title="Especificación del aceite">
+                    <FileTextIcon className="w-5 h-5 text-blue-400" />
+                    <div>
+                        <span className="text-xs text-gray-500">Especificación</span>
+                        <p className="font-bold">{[vehicle.nomenclatura_aceite, vehicle.tipo_aceite].filter(Boolean).join(' / ')}</p>
+                    </div>
+                </div>
+            ) : null}
+          </div>
+
           <div className="space-y-3 mb-6">
               {finalQuoteItems.map((item) => {
-                  const hasOptions = item.potentialCodes.length > 1;
+                  const hasOptions = item.alternatives.length > 1;
+                  const isIncluded = includedItems.has(item.key);
+
                   return (
-                      <div key={item.key} className="bg-gray-800 rounded-lg transition-shadow hover:shadow-lg">
+                      <div key={item.key} className={`bg-gray-800 rounded-lg transition-all duration-300 ${!isIncluded ? 'opacity-50' : 'hover:shadow-lg'}`}>
                           <div 
-                            className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-2 ${hasOptions ? 'cursor-pointer' : ''}`}
-                            onClick={() => hasOptions && toggleExpandRow(item.key)}
+                            className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-2"
                           >
                               <div className="flex items-center gap-4">
+                                <input
+                                  type="checkbox"
+                                  checked={isIncluded}
+                                  onChange={() => handleToggleIncluded(item.key)}
+                                  className="form-checkbox h-5 w-5 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800 flex-shrink-0"
+                                  aria-label={`Incluir ${item.description}`}
+                                />
                                   {item.icon}
                                   <div>
                                       <p className="font-semibold text-white">{item.description}</p>
                                       <p className="text-sm text-gray-400">{item.details}</p>
                                   </div>
                               </div>
-                              <div className="flex items-center gap-4 self-end sm:self-center ml-auto">
-                                <p className={`font-bold text-lg ${item.hasIssue ? 'text-yellow-400' : priceColorClass}`}>
+                              <div 
+                                className={`flex items-center gap-4 self-end sm:self-center ml-auto ${hasOptions ? 'cursor-pointer' : ''}`}
+                                onClick={() => hasOptions && toggleExpandRow(item.key)}
+                              >
+                                <p className={`font-bold text-lg transition-colors ${item.hasIssue ? 'text-yellow-400' : priceColorClass}`}>
                                     {formatCurrency(item.price)}
                                 </p>
                                 {hasOptions && (
@@ -233,6 +353,9 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
                                                 />
                                                 <div>
                                                     <p className="font-semibold text-white">{alt.marca} - {alt.descripcion}</p>
+                                                    {priceLevel === 'costo' && (
+                                                      <p className="text-xs text-gray-400">Proveedor: {alt.proveedor || 'No especificado'}</p>
+                                                    )}
                                                     <p className="text-xs text-gray-500 font-mono">Cod: {alt.codigo}</p>
                                                 </div>
                                             </div>
@@ -274,20 +397,24 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
 
       <div className="mt-8 bg-gray-900/50 rounded-xl p-6">
           <h3 className="text-xl font-bold text-white mb-4">Desglose de Repuestos</h3>
-          <ul className="space-y-1 text-gray-300">
-              <li className="flex justify-between border-b-2 border-gray-700 pb-2 mb-2 font-semibold text-gray-400 text-sm">
-                  <span className="w-2/5">Repuesto</span>
-                  <span className="w-2/5 text-right">Código</span>
-                  <span className="w-1/5 text-right">Cantidad</span>
-              </li>
-              {breakdownItems.map((item, index) => (
-                  <li key={index} className="flex justify-between items-center py-2 border-b border-gray-800 last:border-b-0">
-                      <span className="w-2/5">{item.label}</span>
-                      <span className="w-2/5 text-right text-gray-500 font-mono break-words">{item.value}</span>
-                      <span className="w-1/5 text-right font-semibold">{item.quantity}</span>
-                  </li>
-              ))}
-          </ul>
+          {breakdownItems.length > 0 ? (
+            <ul className="space-y-1 text-gray-300">
+                <li className="flex justify-between border-b-2 border-gray-700 pb-2 mb-2 font-semibold text-gray-400 text-sm">
+                    <span className="w-2/5">Repuesto</span>
+                    <span className="w-2/5 text-right">Código</span>
+                    <span className="w-1/5 text-right">Cantidad</span>
+                </li>
+                {breakdownItems.map((item, index) => (
+                    <li key={index} className="flex justify-between items-center py-2 border-b border-gray-800 last:border-b-0">
+                        <span className="w-2/5">{item.label}</span>
+                        <span className="w-2/5 text-right text-gray-500 font-mono break-words">{item.value}</span>
+                        <span className="w-1/5 text-right font-semibold">{item.quantity}</span>
+                    </li>
+                ))}
+            </ul>
+           ) : (
+            <p className="text-gray-500 text-center py-4">Ningún repuesto seleccionado para el desglose.</p>
+           )}
            {generalInfoItems.length > 0 && (
               <>
                   <div className="border-t border-gray-700 my-4"></div>
@@ -301,8 +428,21 @@ const OilQuote: React.FC<OilQuoteProps> = ({ vehicle, products, laborRate, price
                   </ul>
               </>
           )}
+
+            <div className="border-t-2 border-dashed border-gray-700 my-6"></div>
+            <div className="flex justify-between items-center text-white">
+                <p className="text-2xl font-bold">TOTAL</p>
+                <div className="text-right">
+                    <p className={`text-3xl sm:text-4xl font-extrabold ${hasMissingData ? 'text-gray-500' : 'text-green-400'}`}>
+                        {formatCurrency(totalCost)}
+                    </p>
+                    {hasMissingData && (
+                        <p className="text-sm font-semibold text-yellow-400 mt-1">Faltan Códigos</p>
+                    )}
+                </div>
+            </div>
       </div>
-      <style>{`.animate-fade-in-fast { animation: fade-in 0.2s ease-out forwards; } @keyframes fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } } .form-radio { appearance: none; border-radius: 50%; border-width: 2px; } .form-radio:checked { background-color: currentColor; } .form-radio:checked::before { content: ""; display: block; width: 0.5rem; height: 0.5rem; border-radius: 50%; background-color: #fff; margin: 2px; }`}</style>
+      <style>{`.animate-fade-in-fast { animation: fade-in 0.2s ease-out forwards; } @keyframes fade-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } } .form-radio { appearance: none; border-radius: 50%; border-width: 2px; } .form-radio:checked { background-color: currentColor; } .form-radio:checked::before { content: ""; display: block; width: 0.5rem; height: 0.5rem; border-radius: 50%; background-color: #fff; margin: 2px; } .form-checkbox { appearance: none; border-radius: 4px; border-width: 2px; } .form-checkbox:checked { background-color: currentColor; } .form-checkbox:checked::before { content: "✓"; display: block; color: #fff; text-align: center; line-height: 1; font-size: 0.8rem; }`}</style>
     </>
   );
 };

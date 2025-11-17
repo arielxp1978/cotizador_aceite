@@ -81,7 +81,10 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
     let hasIssue = false;
 
     if (product) {
-      mainDescription += product.marca || 'Marca desconocida';
+      mainDescription += `${product.marca || 'Marca desconocida'}`;
+      if (priceLevel === 'costo') {
+        mainDescription += ` (${product.proveedor || 'Genérico'})`;
+      }
       details = `${product.descripcion} | Cod: ${product.codigo}`;
       cost = selectPrice(product, priceLevel);
     } else {
@@ -164,6 +167,9 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
                                                     />
                                                     <div>
                                                         <p className="font-semibold text-white">{alt.marca} - {alt.descripcion}</p>
+                                                        {priceLevel === 'costo' && (
+                                                          <p className="text-xs text-gray-400">Proveedor: {alt.proveedor || 'No especificado'}</p>
+                                                        )}
                                                         <p className="text-xs text-gray-500 font-mono">Cod: {alt.codigo}</p>
                                                     </div>
                                                 </div>

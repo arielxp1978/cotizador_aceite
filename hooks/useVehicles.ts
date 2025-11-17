@@ -5,20 +5,49 @@ import { supabaseToVehicleServiceList, supabaseToProductList } from '../services
 import { SUPABASE_URL } from '../config';
 
 const getErrorMessage = (error: any): string => {
-  if (error?.message) {
-    if (error.message.includes("Failed to fetch")) {
-        return "Error de Conexión: No se pudo conectar a la base de datos. Verifica tu conexión a internet y la configuración de Supabase.";
+  // Caso 1: El error tiene una propiedad 'message' que es un string.
+  // Esto cubre objetos Error estándar, errores de Supabase y otros errores personalizados.
+  if (error && typeof error.message === 'string') {
+    const message = error.message;
+
+    // Error de red específico
+    if (message.includes("Failed to fetch")) {
+      return "Error de Conexión: No se pudo conectar a la base de datos. Verifica tu conexión a internet y la configuración de Supabase.";
     }
-    if (error.message.includes("relation \"public.vehiculos\" does not exist")) {
-        return "Error de Base de Datos: La tabla 'vehiculos' no fue encontrada. Por favor, verifica que exista.";
+
+    // Error específico de Supabase: tabla no encontrada
+    if (message.includes("relation") && message.includes("does not exist")) {
+        const match = message.match(/relation "public\.(.+?)" does not exist/);
+        const tableName = match ? match[1] : 'desconocida';
+        return `Error de Base de Datos: La tabla '${tableName}' no fue encontrada. Por favor, verifica que la base de datos esté configurada correctamente.`;
     }
-    if (error.message.includes("column") && error.message.includes("does not exist")) {
-        return `Error de Base de Datos: Una columna necesaria no existe. Detalle: ${error.message}`;
+
+    // Error específico de Supabase: columna no encontrada
+    if (message.includes("column") && message.includes("does not exist")) {
+        return `Error de Base de Datos: Una columna necesaria no existe. Detalle: ${message}`;
     }
-    return `Error al cargar datos: ${error.message}`;
+    
+    // Error genérico tipo Supabase (con detalles opcionales)
+    let friendlyMessage = `Error al cargar datos: ${message}`;
+    if (error.details) friendlyMessage += ` (Detalles: ${error.details})`;
+    return friendlyMessage;
   }
-  return 'Ocurrió un error desconocido.';
+  
+  // Caso 2: El error es simplemente un string.
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  // Caso 3: Fallback para otros tipos de errores (objetos sin mensaje, etc.)
+  // Intentamos serializarlo a JSON para evitar "[object Object]".
+  try {
+    return `Ocurrió un error inesperado: ${JSON.stringify(error)}`;
+  } catch (e) {
+    // Si la serialización falla (ej. referencias circulares)
+    return 'Ocurrió un error desconocido e in-serializable. Revisa la consola del navegador para más detalles técnicos.';
+  }
 };
+
 
 export const useVehicles = () => {
   const [vehicles, setVehicles] = useState<VehiculoServicio[]>([]);
@@ -78,11 +107,19 @@ export const useVehicles = () => {
       }, {} as Record<string, string>);
 
       const rateStr = variablesMap['precio-hora'];
-      if (!rateStr) throw new Error("No se encontró la clave 'precio-hora' en la tabla 'variables'.");
-      const newRate = parseFloat(rateStr);
-      if (isNaN(newRate)) throw new Error("El valor de 'precio-hora' no es un número válido.");
+      if (rateStr) {
+          const newRate = parseFloat(rateStr);
+          if (isNaN(newRate)) {
+              setWarning("El valor de 'precio-hora' en la base de datos no es un número válido. La mano de obra no se calculará.");
+              setLaborRate(0);
+          } else {
+              setLaborRate(newRate);
+          }
+      } else {
+          setWarning("No se encontró la tarifa por hora ('precio-hora') en la configuración. La mano de obra no se calculará.");
+          setLaborRate(0);
+      }
       
-      setLaborRate(newRate);
       setAuthKeys({
         taller: variablesMap['clave_taller'] || '',
         costo: variablesMap['clave_costo'] || ''

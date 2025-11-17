@@ -57,7 +57,7 @@ export const deleteVehicle = async (id: number) => {
   }
 };
 
-export const searchProducts = async (term: string, rubro: string, subrubro: string): Promise<Producto[]> => {
+export const searchProducts = async (term: string, rubro: string, subrubro: string, proveedor: string, marca: string): Promise<Producto[]> => {
     let query = supabase
         .from('productos')
         .select('*');
@@ -70,6 +70,12 @@ export const searchProducts = async (term: string, rubro: string, subrubro: stri
     }
     if (subrubro) {
         query = query.eq('subrubro', subrubro);
+    }
+    if (proveedor) {
+        query = query.eq('proveedor', proveedor);
+    }
+    if (marca) {
+        query = query.eq('marca', marca);
     }
 
     const { data, error } = await query.limit(50);

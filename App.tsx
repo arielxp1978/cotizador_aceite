@@ -8,6 +8,8 @@ import OilQuote from './components/VehicleCard';
 import BeltQuote from './components/BeltQuote';
 import Footer from './components/Footer';
 import AdminPage from './components/admin/AdminPage';
+import { useAuth } from './auth/AuthContext';
+import LoginPage from './components/admin/LoginPage';
 
 const AuthModal: React.FC<{
   levelToUnlock: 'taller' | 'costo';
@@ -196,6 +198,7 @@ const MainApp: React.FC<{
 }
 
 export default function App(): React.ReactNode {
+    const { loading: authLoading, user } = useAuth();
     const [route, setRoute] = useState(window.location.hash);
     const { vehicles, products, laborRate, authKeys, loading, error, warning, lastUpdated, refreshData } = useVehicles();
 
@@ -209,22 +212,37 @@ export default function App(): React.ReactNode {
         };
     }, []);
 
-    // Lógica de enrutamiento más robusta
-    const isAdminRoute = route.startsWith('#/admin');
-    const isPublicRoute = route === '' || route === '#' || route === '#/';
-
-    if (isAdminRoute) {
-        return <AdminPage 
-            route={route}
-            vehicles={vehicles}
-            allProducts={products}
-            loading={loading}
-            error={error}
-            refreshData={refreshData}
-        />;
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <LoadingSpinner className="w-12 h-12 text-indigo-400" />
+            </div>
+        );
     }
     
-    // Por defecto, o si es una ruta pública explícita, mostrar la app principal.
+    // Si hay un usuario logueado, se respeta la ruta de administrador.
+    if (user) {
+        if (route.startsWith('#/admin')) {
+            return <AdminPage 
+                route={route}
+                vehicles={vehicles}
+                allProducts={products}
+                loading={loading}
+                error={error}
+                refreshData={refreshData}
+            />;
+        }
+    } else {
+        // Si no hay usuario, solo mostramos la página de login en la ruta exacta '#/admin'.
+        // Esto permite al usuario navegar explícitamente a la página de login.
+        if (route === '#/admin') {
+            return <LoginPage />;
+        }
+    }
+    
+    // Para todos los demás casos (usuario no logueado en una ruta no-admin, o usuario logueado
+    // en una ruta no-admin), mostramos la aplicación principal.
+    // Esto hace que la app pública sea la vista por defecto.
     return <MainApp 
         vehicles={vehicles}
         products={products}

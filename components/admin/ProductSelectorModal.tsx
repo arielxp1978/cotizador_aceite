@@ -23,27 +23,31 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [rubroFilter, setRubroFilter] = useState('');
     const [subrubroFilter, setSubrubroFilter] = useState('');
+    const [proveedorFilter, setProveedorFilter] = useState('');
+    const [marcaFilter, setMarcaFilter] = useState('');
     const [searchResults, setSearchResults] = useState<Producto[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set(initialSelectedCodes));
 
-    const rubros = useMemo(() => [...new Set(allProducts.map(p => p.rubro).filter(Boolean))], [allProducts]);
+    const rubros = useMemo(() => [...new Set(allProducts.map(p => p.rubro).filter(Boolean))].sort(), [allProducts]);
     const subrubros = useMemo(() => {
         if (!rubroFilter) return [];
-        return [...new Set(allProducts.filter(p => p.rubro === rubroFilter).map(p => p.subrubro).filter(Boolean))];
+        return [...new Set(allProducts.filter(p => p.rubro === rubroFilter).map(p => p.subrubro).filter(Boolean))].sort();
     }, [allProducts, rubroFilter]);
+    const proveedores = useMemo(() => [...new Set(allProducts.map(p => p.proveedor).filter(Boolean))].sort(), [allProducts]);
+    const marcas = useMemo(() => [...new Set(allProducts.map(p => p.marca).filter(Boolean))].sort(), [allProducts]);
     
     const performSearch = useCallback(async () => {
         setLoading(true);
         try {
-            const results = await searchProducts(searchTerm, rubroFilter, subrubroFilter);
+            const results = await searchProducts(searchTerm, rubroFilter, subrubroFilter, proveedorFilter, marcaFilter);
             setSearchResults(results);
         } catch (error) {
             console.error("Error searching products", error);
         } finally {
             setLoading(false);
         }
-    }, [searchTerm, rubroFilter, subrubroFilter]);
+    }, [searchTerm, rubroFilter, subrubroFilter, proveedorFilter, marcaFilter]);
 
     useEffect(() => {
         const debounceTimer = setTimeout(() => {
@@ -53,7 +57,6 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
     }, [performSearch]);
     
     useEffect(() => {
-        // Reset subrubro when rubro changes
         setSubrubroFilter('');
     }, [rubroFilter]);
 
@@ -89,8 +92,8 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
                 <div className="flex flex-col md:flex-row flex-grow min-h-0">
                     <div className="w-full md:w-2/3 p-4 flex flex-col">
                         {/* Filters */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4 flex-shrink-0">
-                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar por código/desc..." className="sm:col-span-3 bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 flex-shrink-0">
+                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar por código/desc..." className="col-span-2 sm:col-span-4 bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500" />
                             <select value={rubroFilter} onChange={e => setRubroFilter(e.target.value)} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
                                 <option value="">Todos los Rubros</option>
                                 {rubros.map(r => <option key={r} value={r}>{r}</option>)}
@@ -98,6 +101,14 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
                             <select value={subrubroFilter} onChange={e => setSubrubroFilter(e.target.value)} disabled={!rubroFilter} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50">
                                 <option value="">Todos los Sub-rubros</option>
                                 {subrubros.map(sr => <option key={sr} value={sr}>{sr}</option>)}
+                            </select>
+                             <select value={proveedorFilter} onChange={e => setProveedorFilter(e.target.value)} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Todos los Proveedores</option>
+                                {proveedores.map(p => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                            <select value={marcaFilter} onChange={e => setMarcaFilter(e.target.value)} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Todas las Marcas</option>
+                                {marcas.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
                         </div>
                         {/* Search Results */}
@@ -110,6 +121,7 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
                                                 <input type="checkbox" checked={selectedCodes.has(product.codigo)} onChange={() => handleToggleSelection(product.codigo)} className="form-checkbox h-5 w-5 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800" />
                                                 <div>
                                                     <p className="font-semibold text-white">{product.marca} - {product.descripcion}</p>
+                                                    <p className="text-xs text-gray-400">{product.proveedor || 'Proveedor no especificado'}</p>
                                                     <p className="font-mono text-xs text-gray-500">{product.codigo}</p>
                                                 </div>
                                             </label>
@@ -127,6 +139,7 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
                                 <div key={p.codigo} className="flex items-center justify-between bg-gray-800 p-2 rounded text-sm">
                                     <div>
                                         <p className="font-semibold text-white">{p.marca}</p>
+                                        <p className="text-xs text-gray-400">{p.proveedor || 'Sin prov.'}</p>
                                         <p className="font-mono text-xs text-gray-500">{p.codigo}</p>
                                     </div>
                                     <button onClick={() => handleToggleSelection(p.codigo)} className="p-1 text-red-500 hover:text-red-400">&times;</button>

@@ -92,7 +92,7 @@ const VehicleForm: React.FC<{ vehicleId?: number; allProducts: Producto[] }> = (
                                     return (
                                         <li key={`${code}-${index}`} className="flex items-center justify-between bg-gray-800 p-2 rounded">
                                             <div className="text-sm">
-                                                <p className="font-semibold text-white">{product?.marca || 'Marca desc.'}</p>
+                                                <p className="font-semibold text-white">{product?.marca || 'Marca desc.'} <span className="text-xs text-gray-500 font-normal">({product?.proveedor || 'Sin prov.'})</span></p>
                                                 <p className="text-gray-400">{product?.descripcion || 'Descripción desconocida'}</p>
                                                 <p className="font-mono text-xs text-gray-500">{code}</p>
                                             </div>

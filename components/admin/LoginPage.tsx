@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
-import { LoadingSpinner } from '../IconComponents';
+import { LoadingSpinner, ArrowLeftIcon } from '../IconComponents';
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -73,6 +73,12 @@ const LoginPage: React.FC = () => {
                 </button>
             </div>
           </form>
+        </div>
+        <div className="text-center mt-6">
+            <a href="#/" className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition-colors">
+                <ArrowLeftIcon className="w-4 h-4" />
+                <span>Volver al cotizador</span>
+            </a>
         </div>
       </div>
     </div>

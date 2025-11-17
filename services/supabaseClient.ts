@@ -9,4 +9,15 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('tu-url-de-proy
 }
 
 // Inicializa el cliente de Supabase
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    // Usar sessionStorage en lugar de localStorage.
+    // Esto asegura que la sesión de administrador no persista después de cerrar el navegador,
+    // forzando al usuario a iniciar sesión manualmente cada vez que quiera acceder
+    // al panel de administración, y mostrando la app pública por defecto.
+    storage: window.sessionStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
