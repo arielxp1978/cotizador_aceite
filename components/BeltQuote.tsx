@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { VehiculoServicio, Producto, PriceLevel } from '../types';
-import { CogIcon, ToolIcon, WaterDropIcon, SwitchVerticalIcon } from './IconComponents';
+import { CogIcon, ToolIcon, WaterDropIcon, SwitchVerticalIcon, WhatsAppIcon, ClipboardCheckIcon } from './IconComponents';
 
 interface BeltQuoteProps {
   vehicle: VehiculoServicio;
@@ -22,6 +22,7 @@ const selectPrice = (product: Producto, level: PriceLevel): number => {
 const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, priceLevel }) => {
   const [selectedProductCodes, setSelectedProductCodes] = useState<Record<string, string>>({});
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   const priceColorClass =
     priceLevel === 'taller' ? 'text-yellow-400' :
@@ -117,6 +118,35 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
   const totalCost = finalQuoteItems.reduce((sum, item) => sum + item.price, 0);
   const hasMissingData = finalQuoteItems.some(item => item.hasIssue);
 
+  const handleCopyToClipboard = () => {
+    let quoteText = `⚙️ *Nova - Cambio de Correa* ⚙️\n\n`;
+    quoteText += `*Vehículo:* ${vehicle.marca} ${vehicle.modelo} ${vehicle.version || ''}\n`;
+    quoteText += `--------------------\n`;
+    quoteText += `*Detalle del Servicio:*\n`;
+
+    finalQuoteItems.forEach(item => {
+        if (item.price > 0) {
+            const product = item.alternatives?.find(p => p.codigo === selectedProductCodes[item.key]);
+            let line = `- ${item.description}`;
+            if (product) {
+                line += ` (${product.marca} / ${product.codigo})`;
+            }
+             line += `: ${formatCurrency(item.price)}\n`;
+            quoteText += line;
+        }
+    });
+
+    quoteText += `--------------------\n`;
+    quoteText += `*TOTAL ESTIMADO:* *${formatCurrency(totalCost)}*\n\n`;
+    quoteText += `¡Gracias por cotizar con nosotros! 😊\n\n`;
+    quoteText += `¡Reserva tu turno ahora y asegura tu lugar! 📲`;
+
+    navigator.clipboard.writeText(quoteText).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2500);
+    });
+  };
+
   return (
     <>
         <div className="bg-gray-900/50 rounded-xl p-6">
@@ -198,13 +228,21 @@ const BeltQuote: React.FC<BeltQuoteProps> = ({ vehicle, products, laborRate, pri
 
             <div className="flex justify-between items-center text-white">
                 <p className="text-2xl font-bold">TOTAL</p>
-                <div className="text-right">
-                    <p className={`text-3xl sm:text-4xl font-extrabold ${hasMissingData ? 'text-gray-500' : 'text-green-400'}`}>
-                        {formatCurrency(totalCost)}
-                    </p>
-                    {hasMissingData && (
-                        <p className="text-sm font-semibold text-yellow-400 mt-1">Faltan Códigos</p>
-                    )}
+                <div className="flex items-center gap-3">
+                    <button onClick={handleCopyToClipboard} className="relative group p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors duration-200">
+                      {isCopied ? <ClipboardCheckIcon className="w-6 h-6 text-green-400" /> : <WhatsAppIcon className="w-6 h-6 text-green-500" />}
+                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 text-xs text-white bg-gray-900/80 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        {isCopied ? '¡Copiado!' : 'Copiar para WhatsApp'}
+                      </span>
+                    </button>
+                    <div className="text-right">
+                        <p className={`text-3xl sm:text-4xl font-extrabold ${hasMissingData ? 'text-gray-500' : 'text-green-400'}`}>
+                            {formatCurrency(totalCost)}
+                        </p>
+                        {hasMissingData && (
+                            <p className="text-sm font-semibold text-yellow-400 mt-1">Faltan Códigos</p>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

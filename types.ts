@@ -1,3 +1,4 @@
+
 export type PriceLevel = 'publico' | 'taller' | 'costo';
 
 export interface Producto {
@@ -41,5 +42,6 @@ export interface VehiculoServicio {
   tiempo_mano_obra_correa_minutos: number | null;
   
   // Extras y Observaciones
+  combos_cod: string[] | null;
   observaciones: string | null;
 }

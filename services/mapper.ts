@@ -1,3 +1,4 @@
+
 import { VehiculoServicio, Producto } from '../types';
 
 // Lógica inteligente para parsear códigos: maneja arrays nativos, 
@@ -41,6 +42,7 @@ export const supabaseToVehicleService = (item: any): VehiculoServicio => ({
     rodillos_cod: smartParseCodes(item.rodillos),
     bomba_agua_cod: smartParseCodes(item.bomba),
     tiempo_mano_obra_correa_minutos: item.tiempo_correa,
+    combos_cod: smartParseCodes(item.combos),
     observaciones: item.extras,
 });
 
@@ -73,6 +75,7 @@ export const vehicleServiceToSupabase = (vehicle: Partial<VehiculoServicio>): an
     rodillos: vehicle.rodillos_cod,
     bomba: vehicle.bomba_agua_cod,
     tiempo_correa: vehicle.tiempo_mano_obra_correa_minutos,
+    combos: vehicle.combos_cod,
     extras: vehicle.observaciones,
 });
 

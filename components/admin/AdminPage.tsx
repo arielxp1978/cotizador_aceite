@@ -1,10 +1,13 @@
+
 import React from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import LoginPage from './LoginPage';
 import VehicleListPage from './VehicleListPage';
 import VehicleForm from './VehicleForm';
 import AuditLogPage from './AuditLogPage';
-import { LogoutIcon, CarIcon, SearchIcon, ArrowLeftIcon } from '../IconComponents';
+import UserManagementPage from './UserManagementPage';
+import ComboManagerPage from './ComboManagerPage';
+import { LogoutIcon, CarIcon, SearchIcon, ArrowLeftIcon, UsersIcon, PackageIcon } from '../IconComponents';
 import { VehiculoServicio, Producto } from '../../types';
 
 interface AdminPageProps {
@@ -19,7 +22,14 @@ interface AdminPageProps {
 const AdminPage: React.FC<AdminPageProps> = ({ route, vehicles, allProducts, loading, error, refreshData }) => {
     const { user, signOut } = useAuth();
     
-    const currentTab = route.startsWith('#/admin/audit') ? 'audit' : 'vehicles';
+    let currentTab = 'vehicles';
+    if (route.startsWith('#/admin/audit')) {
+        currentTab = 'audit';
+    } else if (route.startsWith('#/admin/users')) {
+        currentTab = 'users';
+    } else if (route.startsWith('#/admin/combos')) {
+        currentTab = 'combos';
+    }
 
     if (!user) {
         return <LoginPage />;
@@ -28,6 +38,19 @@ const AdminPage: React.FC<AdminPageProps> = ({ route, vehicles, allProducts, loa
     const renderAdminContent = () => {
         if (currentTab === 'audit') {
             return <AuditLogPage />;
+        }
+
+        if (currentTab === 'users') {
+            return <UserManagementPage />;
+        }
+
+        if (currentTab === 'combos') {
+            return <ComboManagerPage 
+                vehicles={vehicles} 
+                allProducts={allProducts} 
+                loading={loading} 
+                onRefresh={refreshData}
+            />;
         }
 
         const newVehicleMatch = route.match(/^#\/admin\/vehicles\/new$/);
@@ -47,6 +70,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ route, vehicles, allProducts, loa
             error={error}
             onRefresh={refreshData}
         />;
+    };
+
+    const handleNavClick = (hash: string) => {
+        window.location.hash = hash;
     };
 
     return (
@@ -75,17 +102,31 @@ const AdminPage: React.FC<AdminPageProps> = ({ route, vehicles, allProducts, loa
                 </div>
                  <div className="bg-gray-900/50 border-t border-gray-700">
                     <div className="container mx-auto px-4">
-                        <nav className="flex items-center gap-4">
-                            <a href="#/admin" 
-                               className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 ${currentTab === 'vehicles' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
+                        <nav className="flex items-center gap-4 overflow-x-auto">
+                            <button 
+                               onClick={() => handleNavClick('#/admin')}
+                               className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 whitespace-nowrap ${currentTab === 'vehicles' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
                                 <CarIcon className="w-5 h-5" />
                                 Vehículos
-                            </a>
-                            <a href="#/admin/audit" 
-                               className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 ${currentTab === 'audit' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
+                            </button>
+                            <button 
+                               onClick={() => handleNavClick('#/admin/combos')}
+                               className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 whitespace-nowrap ${currentTab === 'combos' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
+                                <PackageIcon className="w-5 h-5" />
+                                Combos
+                            </button>
+                            <button 
+                               onClick={() => handleNavClick('#/admin/audit')}
+                               className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 whitespace-nowrap ${currentTab === 'audit' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
                                 <SearchIcon className="w-5 h-5" />
                                 Auditoría
-                            </a>
+                            </button>
+                            <button 
+                               onClick={() => handleNavClick('#/admin/users')}
+                               className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 whitespace-nowrap ${currentTab === 'users' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
+                                <UsersIcon className="w-5 h-5" />
+                                Usuarios
+                            </button>
                         </nav>
                     </div>
                 </div>

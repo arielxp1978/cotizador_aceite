@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { searchProducts } from '../../services/adminService';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Producto } from '../../types';
-import { LoadingSpinner, SearchIcon } from '../IconComponents';
+import { LoadingSpinner } from '../IconComponents';
 
 interface ProductSelectorModalProps {
     isOpen: boolean;
@@ -10,6 +9,7 @@ interface ProductSelectorModalProps {
     title: string;
     initialSelectedCodes: string[];
     allProducts: Producto[];
+    defaultSearchTerm?: string;
 }
 
 const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
@@ -18,15 +18,14 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
     onSelect,
     title,
     initialSelectedCodes,
-    allProducts
+    allProducts,
+    defaultSearchTerm
 }) => {
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchTerm, setSearchTerm] = useState(defaultSearchTerm || '');
     const [rubroFilter, setRubroFilter] = useState('');
     const [subrubroFilter, setSubrubroFilter] = useState('');
     const [proveedorFilter, setProveedorFilter] = useState('');
     const [marcaFilter, setMarcaFilter] = useState('');
-    const [searchResults, setSearchResults] = useState<Producto[]>([]);
-    const [loading, setLoading] = useState(false);
     const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set(initialSelectedCodes));
 
     const rubros = useMemo(() => [...new Set(allProducts.map(p => p.rubro).filter(Boolean))].sort(), [allProducts]);
@@ -37,25 +36,43 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
     const proveedores = useMemo(() => [...new Set(allProducts.map(p => p.proveedor).filter(Boolean))].sort(), [allProducts]);
     const marcas = useMemo(() => [...new Set(allProducts.map(p => p.marca).filter(Boolean))].sort(), [allProducts]);
     
-    const performSearch = useCallback(async () => {
-        setLoading(true);
-        try {
-            const results = await searchProducts(searchTerm, rubroFilter, subrubroFilter, proveedorFilter, marcaFilter);
-            setSearchResults(results);
-        } catch (error) {
-            console.error("Error searching products", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [searchTerm, rubroFilter, subrubroFilter, proveedorFilter, marcaFilter]);
+    const searchResults = useMemo(() => {
+        const trimmedSearch = searchTerm.trim().toLowerCase();
+        let filtered = allProducts;
 
-    useEffect(() => {
-        const debounceTimer = setTimeout(() => {
-            performSearch();
-        }, 300);
-        return () => clearTimeout(debounceTimer);
-    }, [performSearch]);
-    
+        if (rubroFilter) filtered = filtered.filter(p => p.rubro === rubroFilter);
+        if (subrubroFilter) filtered = filtered.filter(p => p.subrubro === subrubroFilter);
+        if (proveedorFilter) filtered = filtered.filter(p => p.proveedor === proveedorFilter);
+        if (marcaFilter) filtered = filtered.filter(p => p.marca === marcaFilter);
+
+        if (trimmedSearch) {
+            const normalizedForCheck = trimmedSearch.replace(/[-\s]/g, '');
+            const isViscositySearch = /^\d+w\d+$/i.test(normalizedForCheck);
+
+            if (isViscositySearch) {
+                const pattern = normalizedForCheck.replace(/w/i, 'w[\\s-]?');
+                const regex = new RegExp(`(^|[^\\d])(${pattern})`, 'i');
+                filtered = filtered.filter(p => {
+                    const desc = p.descripcion || '';
+                    const code = p.codigo || '';
+                    return regex.test(desc) || regex.test(code);
+                });
+            } else {
+                const normalizedSearch = trimmedSearch.replace(/[-\s]/g, '');
+                if (normalizedSearch) {
+                    filtered = filtered.filter(p => {
+                        const normalizedDesc = (p.descripcion || '').toLowerCase().replace(/[-\s]/g, '');
+                        const normalizedCode = (p.codigo || '').toLowerCase().replace(/[-\s]/g, '');
+                        return normalizedDesc.includes(normalizedSearch) || normalizedCode.includes(normalizedSearch);
+                    });
+                }
+            }
+        }
+        
+        return filtered.slice(0, 100);
+
+    }, [searchTerm, rubroFilter, subrubroFilter, proveedorFilter, marcaFilter, allProducts]);
+
     useEffect(() => {
         setSubrubroFilter('');
     }, [rubroFilter]);
@@ -93,43 +110,55 @@ const ProductSelectorModal: React.FC<ProductSelectorModalProps> = ({
                     <div className="w-full md:w-2/3 p-4 flex flex-col">
                         {/* Filters */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 flex-shrink-0">
-                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar por código/desc..." className="col-span-2 sm:col-span-4 bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                            <select value={rubroFilter} onChange={e => setRubroFilter(e.target.value)} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">Todos los Rubros</option>
-                                {rubros.map(r => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                            <select value={subrubroFilter} onChange={e => setSubrubroFilter(e.target.value)} disabled={!rubroFilter} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50">
-                                <option value="">Todos los Sub-rubros</option>
-                                {subrubros.map(sr => <option key={sr} value={sr}>{sr}</option>)}
-                            </select>
-                             <select value={proveedorFilter} onChange={e => setProveedorFilter(e.target.value)} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">Todos los Proveedores</option>
-                                {proveedores.map(p => <option key={p} value={p}>{p}</option>)}
-                            </select>
-                            <select value={marcaFilter} onChange={e => setMarcaFilter(e.target.value)} className="bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                <option value="">Todas las Marcas</option>
-                                {marcas.map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
+                            <div className="col-span-2 sm:col-span-4">
+                                <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Buscar por código/desc..." className="w-full bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                            </div>
+                            <div>
+                                <label htmlFor="rubroFilter" className="text-xs text-gray-400 mb-1 block">Rubro</label>
+                                <select id="rubroFilter" value={rubroFilter} onChange={e => setRubroFilter(e.target.value)} className="w-full bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">Todos los R...</option>
+                                    {rubros.map(r => <option key={r} value={r}>{r}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="subrubroFilter" className="text-xs text-gray-400 mb-1 block">SubRubro</label>
+                                <select id="subrubroFilter" value={subrubroFilter} onChange={e => setSubrubroFilter(e.target.value)} disabled={!rubroFilter} className="w-full bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50">
+                                    <option value="">Todos los S...</option>
+                                    {subrubros.map(sr => <option key={sr} value={sr}>{sr}</option>)}
+                                </select>
+                            </div>
+                             <div>
+                                <label htmlFor="proveedorFilter" className="text-xs text-gray-400 mb-1 block">Proveedor</label>
+                                <select id="proveedorFilter" value={proveedorFilter} onChange={e => setProveedorFilter(e.target.value)} className="w-full bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">Todos los P...</option>
+                                    {proveedores.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="marcaFilter" className="text-xs text-gray-400 mb-1 block">Marca</label>
+                                <select id="marcaFilter" value={marcaFilter} onChange={e => setMarcaFilter(e.target.value)} className="w-full bg-gray-900 border-2 border-gray-700 rounded-lg text-white p-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="">Todas las M...</option>
+                                    {marcas.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                            </div>
                         </div>
                         {/* Search Results */}
                         <div className="flex-grow overflow-y-auto">
-                            {loading ? <div className="flex justify-center items-center h-full"><LoadingSpinner /></div> : (
-                                <ul className="space-y-2">
-                                    {searchResults.map(product => (
-                                        <li key={product.codigo}>
-                                            <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedCodes.has(product.codigo) ? 'bg-indigo-600/30' : 'hover:bg-indigo-600/10'}`}>
-                                                <input type="checkbox" checked={selectedCodes.has(product.codigo)} onChange={() => handleToggleSelection(product.codigo)} className="form-checkbox h-5 w-5 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800" />
-                                                <div>
-                                                    <p className="font-semibold text-white">{product.marca} - {product.descripcion}</p>
-                                                    <p className="text-xs text-gray-400">{product.proveedor || 'Proveedor no especificado'}</p>
-                                                    <p className="font-mono text-xs text-gray-500">{product.codigo}</p>
-                                                </div>
-                                            </label>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                             {!loading && searchResults.length === 0 && <p className="text-center text-gray-500 py-8">No se encontraron productos.</p>}
+                            <ul className="space-y-2">
+                                {searchResults.map(product => (
+                                    <li key={product.codigo}>
+                                        <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedCodes.has(product.codigo) ? 'bg-indigo-600/30' : 'hover:bg-indigo-600/10'}`}>
+                                            <input type="checkbox" checked={selectedCodes.has(product.codigo)} onChange={() => handleToggleSelection(product.codigo)} className="form-checkbox h-5 w-5 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800" />
+                                            <div>
+                                                <p className="font-semibold text-white">{product.marca} - {product.descripcion}</p>
+                                                <p className="text-xs text-gray-400">{product.proveedor || 'Proveedor no especificado'}</p>
+                                                <p className="font-mono text-xs text-gray-500">{product.codigo}</p>
+                                            </div>
+                                        </label>
+                                    </li>
+                                ))}
+                            </ul>
+                            {searchResults.length === 0 && <p className="text-center text-gray-500 py-8">No se encontraron productos.</p>}
                         </div>
                     </div>
                     <div className="w-full md:w-1/3 bg-gray-900/50 p-4 flex flex-col border-t md:border-t-0 md:border-l border-gray-700">

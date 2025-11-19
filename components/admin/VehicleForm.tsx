@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { getVehicleById, createVehicle, updateVehicle } from '../../services/adminService';
@@ -8,13 +9,13 @@ import ProductSelectorModal from './ProductSelectorModal';
 type FormValues = Omit<VehiculoServicio, 'cod_vehiculo'>;
 
 const VehicleForm: React.FC<{ vehicleId?: number; allProducts: Producto[] }> = ({ vehicleId, allProducts }) => {
-    const { register, handleSubmit, control, reset, setValue, formState: { errors } } = useForm<FormValues>();
+    const { register, handleSubmit, control, reset, setValue, getValues, formState: { errors } } = useForm<FormValues>();
     
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalConfig, setModalConfig] = useState<{ field: keyof FormValues; title: string } | null>(null);
+    const [modalConfig, setModalConfig] = useState<{ field: keyof FormValues; title: string; defaultSearchTerm?: string; } | null>(null);
 
     const isEditing = vehicleId !== undefined;
 
@@ -62,7 +63,12 @@ const VehicleForm: React.FC<{ vehicleId?: number; allProducts: Producto[] }> = (
     };
 
     const handleOpenModal = (field: keyof FormValues, title: string) => {
-        setModalConfig({ field, title });
+        const currentValues = getValues();
+        let defaultSearchTerm = '';
+        if (field === 'aceite_motor_cod') {
+            defaultSearchTerm = currentValues.nomenclatura_aceite || '';
+        }
+        setModalConfig({ field, title, defaultSearchTerm });
         setIsModalOpen(true);
     };
 
@@ -166,6 +172,7 @@ const VehicleForm: React.FC<{ vehicleId?: number; allProducts: Producto[] }> = (
                     // @ts-ignore
                     initialSelectedCodes={control._getWatch(modalConfig.field) || []}
                     allProducts={allProducts}
+                    defaultSearchTerm={modalConfig.defaultSearchTerm}
                 />
             )}
             <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 max-w-4xl mx-auto">
@@ -214,6 +221,12 @@ const VehicleForm: React.FC<{ vehicleId?: number; allProducts: Producto[] }> = (
                          <div className="md:col-span-2">
                             {renderNumberField('tiempo_mano_obra_correa_minutos', 'Tiempo Mano de Obra Correa (min)', false, "1")}
                          </div>
+                    </fieldset>
+                    
+                     <fieldset className="grid grid-cols-1 gap-6">
+                         <legend className="text-lg font-semibold text-indigo-300 col-span-full mb-2 border-b border-gray-700 pb-2">Kits y Combos</legend>
+                         {renderRepuestoField('combos_cod', 'Kits / Combos Recomendados')}
+                         <p className="text-sm text-gray-500 italic -mt-4">Busca por "Rubro: Aceite, Subrubro: Combo" o por "KIT" en la descripción.</p>
                     </fieldset>
 
                     <fieldset>
