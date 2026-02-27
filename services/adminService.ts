@@ -1,7 +1,69 @@
 
 import { supabase } from './supabaseClient';
-import { VehiculoServicio, Producto } from '../types';
+import { VehiculoServicio, Producto, Cliente, Presupuesto } from '../types';
 import { vehicleServiceToSupabase, supabaseToVehicleService, supabaseToProductList } from './mapper';
+
+// ... (getSupabaseErrorMessage remains the same)
+
+// --- Clientes ---
+export const getClientes = async (): Promise<Cliente[]> => {
+    const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .order('nombre');
+    
+    if (error) throw new Error(getSupabaseErrorMessage(error));
+    return data || [];
+};
+
+export const createCliente = async (cliente: Omit<Cliente, 'id' | 'created_at'>): Promise<Cliente> => {
+    const { data, error } = await supabase
+        .from('clientes')
+        .insert([cliente])
+        .select()
+        .single();
+    
+    if (error) throw new Error(getSupabaseErrorMessage(error));
+    return data;
+};
+
+// --- Presupuestos ---
+export const savePresupuesto = async (presupuesto: Omit<Presupuesto, 'id' | 'created_at'>): Promise<Presupuesto> => {
+    const { data, error } = await supabase
+        .from('presupuestos')
+        .insert([presupuesto])
+        .select()
+        .single();
+    
+    if (error) throw new Error(getSupabaseErrorMessage(error));
+    return data;
+};
+
+export const getPresupuestos = async (email?: string): Promise<Presupuesto[]> => {
+    let query = supabase
+        .from('presupuestos')
+        .select('*')
+        .order('fecha', { ascending: false });
+    
+    if (email) {
+        query = query.eq('usuario_email', email);
+    }
+
+    const { data, error } = await query;
+    if (error) throw new Error(getSupabaseErrorMessage(error));
+    return data || [];
+};
+
+export const updatePresupuestoStatus = async (id: string, estado: Presupuesto['estado']) => {
+    const { error } = await supabase
+        .from('presupuestos')
+        .update({ estado })
+        .eq('id', id);
+    
+    if (error) throw new Error(getSupabaseErrorMessage(error));
+};
+
+// ... (rest of the file remains the same)
 
 const getSupabaseErrorMessage = (error: any): string => {
   if (!error) return 'Error desconocido';

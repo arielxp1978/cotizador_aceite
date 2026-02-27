@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { VehiculoServicio, PriceLevel, Producto } from './types';
 import { useVehicles } from './hooks/useVehicles';
 import Header from './components/Header';
-import { LoadingSpinner, OilCanIcon, BeltIcon, ArrowLeftIcon } from './components/IconComponents';
+import { LoadingSpinner, OilCanIcon, BeltIcon, ArrowLeftIcon, ClipboardCheckIcon } from './components/IconComponents';
 import VehicleSearch from './components/FilterSidebar';
 import OilQuote from './components/VehicleCard';
 import BeltQuote from './components/BeltQuote';
+import ManualQuote from './components/ManualQuote';
 import Footer from './components/Footer';
 import AdminPage from './components/admin/AdminPage';
 import { useAuth } from './auth/AuthContext';
@@ -69,6 +70,7 @@ const MainApp: React.FC<{
 }> = ({ vehicles, products, laborRate, authKeys, loading, error, warning, lastUpdated, refreshData }) => {
     const [selectedVehicle, setSelectedVehicle] = useState<VehiculoServicio | null>(null);
     const [serviceType, setServiceType] = useState<'oil' | 'belt'>('oil');
+    const [viewMode, setViewMode] = useState<'vehicle' | 'manual'>('vehicle');
     
     const [priceLevel, setPriceLevel] = useState<PriceLevel>('publico');
     const [unlockedLevels, setUnlockedLevels] = useState<PriceLevel[]>(['publico']);
@@ -108,15 +110,19 @@ const MainApp: React.FC<{
 
     const renderContent = () => {
         if (loading && vehicles.length === 0) {
-        return (
-            <div className="flex justify-center items-center h-96">
-            <LoadingSpinner className="w-16 h-16 text-indigo-400" />
-            </div>
-        );
+            return (
+                <div className="flex justify-center items-center h-96">
+                    <LoadingSpinner className="w-16 h-16 text-indigo-400" />
+                </div>
+            );
         }
 
         if (error) {
-        return <div className="text-center text-red-400 bg-red-900/20 p-4 rounded-lg">{error}</div>;
+            return <div className="text-center text-red-400 bg-red-900/20 p-4 rounded-lg">{error}</div>;
+        }
+
+        if (viewMode === 'manual') {
+            return <ManualQuote products={products} priceLevel={priceLevel} />;
         }
 
         if (selectedVehicle) {
@@ -170,6 +176,8 @@ const MainApp: React.FC<{
                 priceLevel={priceLevel}
                 unlockedLevels={unlockedLevels}
                 onLevelChange={handleLevelChange}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
             />
             {modalInfo.isOpen && modalInfo.level && (
                 <AuthModal

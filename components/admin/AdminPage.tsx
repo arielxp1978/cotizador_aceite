@@ -7,7 +7,8 @@ import VehicleForm from './VehicleForm';
 import AuditLogPage from './AuditLogPage';
 import UserManagementPage from './UserManagementPage';
 import ComboManagerPage from './ComboManagerPage';
-import { LogoutIcon, CarIcon, SearchIcon, ArrowLeftIcon, UsersIcon, PackageIcon } from '../IconComponents';
+import QuotesListPage from './QuotesListPage';
+import { LogoutIcon, CarIcon, SearchIcon, ArrowLeftIcon, UsersIcon, PackageIcon, ClipboardCheckIcon } from '../IconComponents';
 import { VehiculoServicio, Producto } from '../../types';
 
 interface AdminPageProps {
@@ -29,6 +30,8 @@ const AdminPage: React.FC<AdminPageProps> = ({ route, vehicles, allProducts, loa
         currentTab = 'users';
     } else if (route.startsWith('#/admin/combos')) {
         currentTab = 'combos';
+    } else if (route.startsWith('#/admin/quotes')) {
+        currentTab = 'quotes';
     }
 
     if (!user) {
@@ -51,6 +54,10 @@ const AdminPage: React.FC<AdminPageProps> = ({ route, vehicles, allProducts, loa
                 loading={loading} 
                 onRefresh={refreshData}
             />;
+        }
+
+        if (currentTab === 'quotes') {
+            return <QuotesListPage />;
         }
 
         const newVehicleMatch = route.match(/^#\/admin\/vehicles\/new$/);
@@ -114,6 +121,12 @@ const AdminPage: React.FC<AdminPageProps> = ({ route, vehicles, allProducts, loa
                                className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 whitespace-nowrap ${currentTab === 'combos' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
                                 <PackageIcon className="w-5 h-5" />
                                 Combos
+                            </button>
+                            <button 
+                               onClick={() => handleNavClick('#/admin/quotes')}
+                               className={`flex items-center gap-2 py-2 px-3 text-sm font-semibold transition-colors duration-200 whitespace-nowrap ${currentTab === 'quotes' ? 'text-white border-b-2 border-indigo-500' : 'text-gray-400 hover:text-white'}`}>
+                                <ClipboardCheckIcon className="w-5 h-5" />
+                                Presupuestos
                             </button>
                             <button 
                                onClick={() => handleNavClick('#/admin/audit')}

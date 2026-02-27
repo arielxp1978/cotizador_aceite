@@ -9,6 +9,8 @@ interface HeaderProps {
   priceLevel: PriceLevel;
   unlockedLevels: PriceLevel[];
   onLevelChange: (level: PriceLevel) => void;
+  viewMode: 'vehicle' | 'manual';
+  onViewModeChange: (mode: 'vehicle' | 'manual') => void;
 }
 
 const levelLabels: Record<PriceLevel, string> = {
@@ -19,7 +21,15 @@ const levelLabels: Record<PriceLevel, string> = {
 
 const priceLevels: PriceLevel[] = ['publico', 'taller', 'costo'];
 
-const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, priceLevel, unlockedLevels, onLevelChange }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  onRefresh, 
+  isLoading, 
+  priceLevel, 
+  unlockedLevels, 
+  onLevelChange,
+  viewMode,
+  onViewModeChange
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { user, signOut } = useAuth();
@@ -50,12 +60,25 @@ const Header: React.FC<HeaderProps> = ({ onRefresh, isLoading, priceLevel, unloc
     <header className="bg-gray-800/50 backdrop-blur-sm sticky top-0 z-40 border-b border-gray-700">
       <div className="container mx-auto px-4 py-3">
         <div className="flex justify-between items-center gap-4">
-          <a href="/#" className="flex items-center gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-            </svg>
-            <h1 className="text-xl font-bold text-white tracking-tight hidden sm:block">Cotizador Rápido</h1>
-          </a>
+          <button 
+            onClick={() => onViewModeChange(viewMode === 'vehicle' ? 'manual' : 'vehicle')}
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity group"
+            title={viewMode === 'vehicle' ? "Cambiar a Presupuesto Libre" : "Cambiar a Cotizador por Vehículo"}
+          >
+            <div className={`p-2 rounded-lg transition-colors ${viewMode === 'manual' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+            </div>
+            <div className="text-left">
+              <h1 className="text-lg font-bold text-white tracking-tight leading-none">
+                {viewMode === 'vehicle' ? 'Cotizador Rápido' : 'Presupuesto Libre'}
+              </h1>
+              <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1 group-hover:text-indigo-400 transition-colors">
+                {viewMode === 'vehicle' ? 'Click para Presupuesto' : 'Click para Vehículos'}
+              </p>
+            </div>
+          </button>
 
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="relative" ref={wrapperRef}>

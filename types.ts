@@ -45,3 +45,36 @@ export interface VehiculoServicio {
   combos_cod: string[] | null;
   observaciones: string | null;
 }
+
+export interface Cliente {
+  id?: string;
+  nombre: string;
+  email: string | null;
+  telefono: string | null;
+  cuit_dni: string | null;
+  direccion: string | null;
+  notas: string | null;
+  created_at?: string;
+}
+
+export interface PresupuestoItem {
+  codigo: string;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+}
+
+export interface Presupuesto {
+  id?: string;
+  fecha: string;
+  cliente_id: string | null;
+  cliente_nombre?: string; // Para presupuestos rápidos sin cliente formal
+  usuario_email: string | null; // Taller que lo creó
+  items: PresupuestoItem[];
+  total: number;
+  nivel_precio: PriceLevel;
+  estado: 'pendiente' | 'aprobado' | 'rechazado';
+  notas: string | null;
+  created_at?: string;
+}
